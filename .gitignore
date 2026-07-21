@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+audit-log.jsonl
+audit-log.db
+memory.md
+DECISIONS.md
