@@ -1,4 +1,4 @@
-// intent-builder.ts — deterministically converts a feasible brain proposal into the exact unsigned
+// intent-builder.ts: deterministically converts a feasible brain proposal into the exact unsigned
 // OpenRails intent the Vault will enforce. No LLM, no signing, no submission, no I/O.
 import { ethers } from "ethers";
 import {
@@ -23,7 +23,7 @@ const PERIOD_SECONDS: Record<string, bigint> = {
 
 /** Everything component 5 needs to present terms and collect the user's signature. */
 export interface BuiltIntent {
-  /** Unsigned intent in the SDK's exact signing type — ready for signPermissionEnvelope. */
+  /** Unsigned intent in the SDK's exact signing type, ready for signPermissionEnvelope. */
   intent: OpenRailsIntentV1;
   /** Canonical metadata committed to by intent.metadataHash. */
   metadata: CanonicalMetadataV1;
@@ -57,7 +57,7 @@ function toBaseUnits(human: string, decimals: number, label: string): bigint {
 
 /**
  * Build the unsigned typed intent from a feasible proposal.
- * Pure function: nonce and decimals come from the passed-in OnChainState — pass FRESH state,
+ * Pure function: nonce and decimals come from the passed-in OnChainState, pass FRESH state,
  * read immediately before building, or the hub will reject the stale nonce.
  */
 export function buildIntent(
@@ -109,7 +109,7 @@ export function buildIntent(
     }
   }
 
-  const lane = options.lane ?? 0; // Nonce Lane 0 — same lane the MCP uses
+  const lane = options.lane ?? 0; // Nonce Lane 0, same lane the MCP uses
   const laneState = state.nonceLanes.find((l) => l.lane === lane);
   if (!laneState) throw new IntentBuildError(`no Nonce Lane ${lane} state in OnChainState`);
   const nonceValue = laneState.nextValue;

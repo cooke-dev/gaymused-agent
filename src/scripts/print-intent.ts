@@ -1,4 +1,4 @@
-// print-intent.ts — offline inspection of the intent-builder: hardcoded proposals + hardcoded state,
+// print-intent.ts: offline inspection of the intent-builder: hardcoded proposals + hardcoded state,
 // zero LLM calls, zero chain calls. Prints the exact unsigned typed intents.
 import { loadConfig } from "../config";
 import { buildIntent } from "../intent-builder";

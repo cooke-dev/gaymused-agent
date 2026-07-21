@@ -1,4 +1,4 @@
-// try-brain.ts — run sample requests through the brain against real on-chain state. Prints proposals only; nothing is signed or submitted.
+// try-brain.ts: run sample requests through the brain against real on-chain state. Prints proposals only; nothing is signed or submitted.
 import { ethers } from "ethers";
 import { loadConfig } from "../config";
 import { makeProvider, readOnChainState } from "../reader";

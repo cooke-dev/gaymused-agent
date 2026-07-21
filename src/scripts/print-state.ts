@@ -1,4 +1,4 @@
-// print-state.ts — eyeball the reader: dump OnChainState for an address (default: the dev payer wallet).
+// print-state.ts: eyeball the reader: dump OnChainState for an address (default: the dev payer wallet).
 import { ethers } from "ethers";
 import { loadConfig } from "../config";
 import { makeProvider, readOnChainState } from "../reader";

@@ -1,4 +1,4 @@
-// brain.ts — DECIDES and EXPLAINS only. Consumes OnChainState + a user request, returns a validated
+// brain.ts: DECIDES and EXPLAINS only. Consumes OnChainState + a user request, returns a validated
 // human-terms proposal. Never signs, never builds typed data, never submits, never touches the chain.
 import { ethers } from "ethers";
 import { z } from "zod";
@@ -11,10 +11,10 @@ const decimalString = z
   .regex(/^\d+(\.\d+)?$/, "must be a plain decimal number string, e.g. \"5\" or \"0.25\"");
 
 const PaymentTermsSchema = z.object({
-  /** Token symbol — always the configured demo token, never guessed. */
+  /** Token symbol, always the configured demo token, never guessed. */
   token: z.string(),
   recipient: z.string(),
-  /** Hard cap in human token units — the bound the Vault will enforce. */
+  /** Hard cap in human token units, the bound the Vault will enforce. */
   totalAllocation: decimalString,
   /** Streams only: human-readable rate. */
   rate: z
@@ -55,7 +55,7 @@ const PERIOD_SECONDS: Record<string, number> = { minute: 60, hour: 3600, day: 86
 
 function fmtCard(c: PaycardSummary, decimals: number, symbol: string): string {
   return (
-    `${c.kind} paycard ${c.paycardId.slice(0, 10)}… [${c.status}] as ${c.role}: ` +
+    `${c.kind} paycard ${c.paycardId.slice(0, 10)}... [${c.status}] as ${c.role}: ` +
     `cap ${ethers.formatUnits(c.totalAllocationPool, decimals)} ${symbol}, ` +
     `remaining ${ethers.formatUnits(c.availableBalance, decimals)} ${symbol}, ` +
     `recipient ${c.recipient}`
@@ -101,8 +101,8 @@ token, the action is "unsupported".
 Output rules:
 - Respond with ONLY a JSON object, no prose around it.
 - Omit unused optional keys entirely (e.g. no "payment" for answer_state/unsupported, no "rate" for
-  one-time payments) — never set a key to null.
-- Amounts are human-readable decimal strings in ${state.tokenSymbol} units (e.g. "5", "0.25") — never
+  one-time payments), never set a key to null.
+- Amounts are human-readable decimal strings in ${state.tokenSymbol} units (e.g. "5", "0.25"), never
   base units, never hex. You never produce addresses not present in the request or state, never
   calldata, signatures, or transaction data.
 - "recipient" must be copied verbatim from the user's request (a 0x... address). If the user gave
@@ -175,7 +175,7 @@ function checkProposal(p: AgentProposal, state: OnChainState): AgentProposal {
     const totalAtRate =
       (ratePerPeriod * BigInt(pay.durationSeconds)) / BigInt(PERIOD_SECONDS[pay.rate.per]);
     if (totalAtRate > cap) {
-      return fail("rate times duration exceeds the proposed cap — bounds are inconsistent");
+      return fail("rate times duration exceeds the proposed cap, bounds are inconsistent");
     }
   } else if (pay.rate || pay.durationSeconds) {
     return fail("one-time payment must not have a rate or duration");

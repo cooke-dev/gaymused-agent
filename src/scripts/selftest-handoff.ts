@@ -1,4 +1,4 @@
-// selftest-handoff.ts — offline QA of the handoff server mechanics (verify, single-use, bad-sig
+// selftest-handoff.ts: offline QA of the handoff server mechanics (verify, single-use, bad-sig
 // rejection) using an EPHEMERAL random wallet as a browser-wallet stand-in. No chain, no LLM, no .env key.
 import { ethers } from "ethers";
 import { OPENRAILS_EIP712_TYPES, buildSettlementIntentValue } from "openrails-sdk";
@@ -50,7 +50,7 @@ async function main() {
   let fail = 0;
   const check = (name: string, ok: boolean, detail = "") => {
     ok ? pass++ : fail++;
-    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? ` — ${detail}` : ""}`);
+    console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? `, ${detail}` : ""}`);
   };
 
   // 1. Page renders with terms

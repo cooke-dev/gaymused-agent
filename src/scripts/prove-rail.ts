@@ -1,4 +1,4 @@
-// prove-rail.ts — one-shot proof that the live Arc-testnet-V2 rail works: open a tiny bounded stream, read it back.
+// prove-rail.ts: one-shot proof that the live Arc-testnet-V2 rail works: open a tiny bounded stream, read it back.
 import { ethers } from "ethers";
 import {
   LeptonOpenRailsClient,
@@ -28,7 +28,7 @@ async function main() {
     batchMaxCount: 1,
   });
   await assertOpenRailsNetwork(provider, network.chainId);
-  console.log(`RPC OK — connected to chain ${network.chainId}`);
+  console.log(`RPC OK, connected to chain ${network.chainId}`);
 
   if (!payerPrivateKey) {
     const fresh = ethers.Wallet.createRandom();
@@ -51,7 +51,7 @@ async function main() {
   // Tiny bounded stream: 0.06 USDC total, metered over 10 minutes.
   const totalAllocationPool = 60_000n; // 0.06 USDC at 6 decimals
   const lifespanSeconds = 600;
-  const flowVelocityPerSecond = totalAllocationPool / BigInt(lifespanSeconds); // 100/s — pool == velocity * lifespan
+  const flowVelocityPerSecond = totalAllocationPool / BigInt(lifespanSeconds); // 100/s, pool == velocity * lifespan
 
   if (balance < totalAllocationPool) {
     console.error(

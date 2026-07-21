@@ -1,4 +1,4 @@
-// reader.ts — read-only on-chain state for the agent: gas + token balances, existing Paycard Streams, Nonce Lanes. No LLM, no writes.
+// reader.ts: read-only on-chain state for the agent: gas + token balances, existing Paycard Streams, Nonce Lanes. No LLM, no writes.
 import { ethers } from "ethers";
 import {
   readNonce,
@@ -41,7 +41,7 @@ export interface PaycardSummary {
 
 export interface NonceLaneState {
   lane: number;
-  /** Next nonce value the hub expects on this lane — use as `nonceValue` in a new intent. */
+  /** Next nonce value the hub expects on this lane, use as `nonceValue` in a new intent. */
   nextValue: number;
 }
 
@@ -53,7 +53,7 @@ export interface OnChainState {
   gasBalance: bigint;
   /** Stablecoin ERC-20 balance of the configured demo token. */
   tokenBalance: bigint;
-  /** Decimals read from the token contract (config fallback) — never assumed. */
+  /** Decimals read from the token contract (config fallback), never assumed. */
   tokenDecimals: number;
   tokenSymbol: string;
   /** Current ERC-20 allowance from this address to the hub (approve-path headroom). */
@@ -70,10 +70,15 @@ export interface ReadStateOptions {
   lookbackBlocks?: number;
   /** Max paycards to return per role scan (default 25). */
   limit?: number;
-  /** Nonce Lanes to read (default [0] — the lane the MCP uses). */
+  /** Nonce Lanes to read (default [0], the lane the MCP uses). */
   lanes?: number[];
   /** Known paycard ids to include even if outside the log lookback window. */
   knownPaycardIds?: string[];
+  /**
+   * Enumerate existing paycards by scanning event logs (default true). Set false on hot paths that
+   * only need balances and nonce lanes: the scan is the slowest call and public RPCs time out on it.
+   */
+  includePaycards?: boolean;
 }
 
 function summarize(
@@ -116,7 +121,7 @@ export async function readOnChainState(
   const latestBlock = await provider.getBlockNumber();
   const fromBlock = Math.max(0, latestBlock - lookbackBlocks);
 
-  // Gas and stablecoin are distinct assets (only legacy Arc conflates them) — read both.
+  // Gas and stablecoin are distinct assets (only legacy Arc conflates them), read both.
   const gasBalance = await provider.getBalance(user);
   const tokenBalance = await readTokenBalance(provider, network.tokenAddress, user);
   const hubAllowance = await readTokenAllowance(provider, network.tokenAddress, user, network.hubAddress);
@@ -125,27 +130,28 @@ export async function readOnChainState(
   try {
     tokenDecimals = Number(await getOpenRailsToken(provider, network.tokenAddress).decimals());
   } catch {
-    // token without decimals() — keep the config fallback
+    // token without decimals(), keep the config fallback
   }
-
-  const asPayer = await recoverPaycardsFromLogs(provider, network.hubAddress, {
-    payer: user,
-    fromBlock,
-    toBlock: latestBlock,
-    limit,
-  });
-  const asRecipient = await recoverPaycardsFromLogs(provider, network.hubAddress, {
-    recipient: user,
-    fromBlock,
-    toBlock: latestBlock,
-    limit,
-  });
 
   const byId = new Map<string, PaycardSummary>();
-  for (const card of [...asPayer, ...asRecipient]) {
-    byId.set(card.paycardId.toLowerCase(), summarize(card, user));
+  if (options.includePaycards !== false) {
+    const asPayer = await recoverPaycardsFromLogs(provider, network.hubAddress, {
+      payer: user,
+      fromBlock,
+      toBlock: latestBlock,
+      limit,
+    });
+    const asRecipient = await recoverPaycardsFromLogs(provider, network.hubAddress, {
+      recipient: user,
+      fromBlock,
+      toBlock: latestBlock,
+      limit,
+    });
+    for (const card of [...asPayer, ...asRecipient]) {
+      byId.set(card.paycardId.toLowerCase(), summarize(card, user));
+    }
   }
-  // Pinned ids (e.g. from our audit log) may predate the lookback window — read them directly.
+  // Pinned ids (e.g. from our audit log) may predate the lookback window, read them directly.
   for (const id of options.knownPaycardIds ?? []) {
     if (byId.has(id.toLowerCase())) continue;
     const registry = await readPaycard(provider, network.hubAddress, id);

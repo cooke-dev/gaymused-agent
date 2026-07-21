@@ -1,4 +1,4 @@
-// config.ts — owns ALL network values (chain, RPC, hub, token) and env keys; nothing else may hardcode them.
+// config.ts: owns ALL network values (chain, RPC, hub, token) and env keys; nothing else may hardcode them.
 import * as dotenv from "dotenv";
 
 dotenv.config();
@@ -8,7 +8,7 @@ export interface NetworkConfig {
   name: string;
   chainId: number;
   rpcUrl: string;
-  /** OpenRails clearinghouse (hub) address — the Vault that enforces bounds. */
+  /** OpenRails clearinghouse (hub) address, the Vault that enforces bounds. */
   hubAddress: string;
   /** Stablecoin settled by the rail (USDC). Native gas token on Arc; plain ERC-20 on GIWA. */
   tokenAddress: string;
@@ -16,16 +16,16 @@ export interface NetworkConfig {
   tokenDecimals: number;
   /** EIP-712 domain version the hub expects. */
   domainVersion: string;
-  /** True where gas is NOT the stablecoin (GIWA: gas is ETH) — gasless relaying is then essential. */
+  /** True where gas is NOT the stablecoin (GIWA: gas is ETH), gasless relaying is then essential. */
   gasIsSeparateAsset: boolean;
-  /** OpenRails keeper relay — sponsors gas for opens/claims (payGasless/claimGasless). */
+  /** OpenRails keeper relay, sponsors gas for opens/claims (payGasless/claimGasless). */
   relayUrl: string;
   /** Block explorer base for tx links in chat. */
   explorerBaseUrl: string;
 }
 
 const PRESETS: Record<string, NetworkConfig> = {
-  // LEGACY / reference only — proved the rail in component 1. GIWA is the target;
+  // LEGACY / reference only, proved the rail in component 1. GIWA is the target;
   // do not add Arc-specific behavior anywhere.
   "arc-testnet-v2": {
     name: "arc-testnet-v2",
@@ -62,7 +62,7 @@ export interface AppConfig {
   /** Testnet payer key for dev; production users sign via the handoff, not this key. */
   payerPrivateKey?: string;
   openRouterApiKey?: string;
-  /** OpenRouter model id for the brain — swappable without code changes. */
+  /** OpenRouter model id for the brain, swappable without code changes. */
   openRouterModel: string;
   telegramBotToken?: string;
 }
@@ -87,7 +87,7 @@ export function loadConfig(): AppConfig {
 
   for (const field of ["chainId", "rpcUrl", "hubAddress", "tokenAddress"] as const) {
     if (!network[field]) {
-      throw new Error(`Network "${network.name}" is missing ${field} — set the OPENRAILS_* env override.`);
+      throw new Error(`Network "${network.name}" is missing ${field}, set the OPENRAILS_* env override.`);
     }
   }
 

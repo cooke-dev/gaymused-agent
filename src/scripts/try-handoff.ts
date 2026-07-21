@@ -1,4 +1,4 @@
-// try-handoff.ts — end-to-end signing handoff test: build a real intent, open the page, user signs
+// try-handoff.ts: end-to-end signing handoff test: build a real intent, open the page, user signs
 // in their own browser wallet, verify the returned signature. No LLM calls, nothing submitted on-chain.
 import { ethers } from "ethers";
 import { loadConfig } from "../config";
@@ -10,7 +10,7 @@ import type { AgentProposal } from "../brain";
 async function main() {
   const cfg = loadConfig();
 
-  // The wallet that will sign in the browser. Address only — this script never reads a private
+  // The wallet that will sign in the browser. Address only, this script never reads a private
   // key, and the .env dev key is deliberately not a fallback: real users sign in their own wallet.
   const signerAddress = process.argv[2];
   if (!signerAddress || !ethers.isAddress(signerAddress)) {
@@ -22,7 +22,7 @@ async function main() {
   console.log(`Reading fresh state for ${signerAddress}...`);
   const state = await readOnChainState(provider, cfg.network, signerAddress);
 
-  // Hardcoded sample proposal — a tiny bounded stream (0.01 USDC/minute for 5 minutes, cap 0.05).
+  // Hardcoded sample proposal, a tiny bounded stream (0.01 USDC/minute for 5 minutes, cap 0.05).
   const proposal: AgentProposal = {
     action: "open_stream",
     feasible: true,
@@ -58,7 +58,7 @@ async function main() {
     console.log(`  signature:   ${result.signature.slice(0, 24)}...${result.signature.slice(-10)}`);
     console.log(`  envelope:    ${result.envelopeToken.slice(0, 40)}... (${result.envelopeToken.length} chars, ready for component 6)`);
     const matches = result.signerAddress.toLowerCase() === signerAddress.toLowerCase();
-    console.log(`  matches intended payer: ${matches ? "yes" : `NO — intent was built for ${signerAddress}`}`);
+    console.log(`  matches intended payer: ${matches ? "yes" : `NO, intent was built for ${signerAddress}`}`);
     console.log("\nNothing was submitted on-chain. Handoff proven.");
   } finally {
     await server.stop();
