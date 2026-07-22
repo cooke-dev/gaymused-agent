@@ -2,7 +2,7 @@
   "name": "gaymused-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Agentic brain layer over OpenRails for the GASOK program on GIWA — Telegram copilot that proposes bounded budgets and acts within them.",
+  "description": "Agentic brain layer over OpenRails for the GASOK program on GIWA: a Telegram copilot that proposes bounded budgets and acts within them.",
   "type": "commonjs",
   "engines": {
     "node": ">=18"
