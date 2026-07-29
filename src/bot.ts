@@ -24,6 +24,8 @@ export class TelegramSidecar {
   private readonly brainOpts: BrainOptions;
   /** Payer wallet the user set for their chat. The key stays in their wallet; we only hold the address. */
   private readonly wallets = new Map<number, string>();
+  /** Pending handoff id per chat, used only for local cancellation before signing completes. */
+  private readonly pendingHandoffs = new Map<number, string>();
   private running = false;
 
   constructor(private readonly cfg: AppConfig) {
@@ -56,6 +58,7 @@ export class TelegramSidecar {
       { command: "state", description: "Read balance and active streams" },
       { command: "stream", description: "Request a capped streaming payment" },
       { command: "pay", description: "Request a capped one-time payment" },
+      { command: "cancel", description: "Cancel a pending signing request" },
     ]);    const me = await this.tg.getMe();
     console.log(`Sidecar up on ${this.cfg.network.name} (chain ${this.cfg.network.chainId}).`);
     console.log(`Bot: @${me.username}  Agent wallet: ${this.agentWallet.address} (${ethers.formatEther(gas)} ETH)`);
@@ -106,6 +109,7 @@ export class TelegramSidecar {
       if (text.startsWith("/start") || text.startsWith("/help")) return this.cmdHelp(chatId);
       if (text.startsWith("/wallet")) return this.cmdWallet(chatId, text);
       if (text.startsWith("/state")) return this.cmdState(chatId);
+      if (/^\/cancel(?:@\S+)?$/i.test(text)) return this.cmdCancel(chatId);
       if (/^\/stream(?:@\S+)?$/i.test(text)) {
         return this.send(chatId, "Usage: /stream 0.09 orUSD to 0xRecipient over 30 minutes");
       }
@@ -135,7 +139,8 @@ export class TelegramSidecar {
         "",
         "1) Set your wallet:  /wallet 0xYourAddress",
         "2) Check it:         /state",
-        "3) Ask in plain language, for example:",
+        "3) Cancel a pending signing link: /cancel",
+        "4) Ask in plain language, for example:",
         `   • stream 0.09 ${sym} to 0xRecipient over 30 minutes`,
         `   • pay 0.25 ${sym} to 0xRecipient`,
         "",
@@ -161,6 +166,13 @@ export class TelegramSidecar {
     await this.send(chatId, describeState(state));
   }
 
+  private cmdCancel(chatId: number): Promise<void> {
+    const handoffId = this.pendingHandoffs.get(chatId);
+    if (!handoffId) return this.send(chatId, "There is no pending signing request to cancel.");
+    this.pendingHandoffs.delete(chatId);
+    this.handoff.cancelHandoff(handoffId);
+    return this.send(chatId, "Pending signing request cancelled. Nothing was signed and nothing moved.");
+  }
   private async handleRequest(chatId: number, text: string): Promise<void> {
     const wallet = this.wallets.get(chatId);
     if (!wallet) return this.send(chatId, "Set your wallet first: /wallet 0xYourAddress, then ask again.");
@@ -214,7 +226,8 @@ export class TelegramSidecar {
     const built = buildIntent(proposal, state, net);
     const pool = built.baseUnits.totalAllocationPool;
     const approval: ApprovalRequest = { token: net.tokenAddress, spender: net.hubAddress, value: pool };
-    const { url, signed } = this.handoff.createHandoff(built, proposal.explanation, approval);
+    const { id: handoffId, url, signed } = this.handoff.createHandoff(built, proposal.explanation, approval);
+    this.pendingHandoffs.set(chatId, handoffId);
 
     await this.send(
       chatId,
@@ -238,6 +251,8 @@ export class TelegramSidecar {
     } catch {
       return this.send(chatId, "That signing link expired before it was used. Ask again for a fresh one. Nothing moved.");
     }
+
+    if (this.pendingHandoffs.get(chatId) === handoffId) this.pendingHandoffs.delete(chatId);
 
     if (handoff.approveTxHash) {
       await this.send(chatId, `Signed by ${handoff.signerAddress}. Approval confirmed:\n${this.txLink(handoff.approveTxHash)}\nOpening now...`);

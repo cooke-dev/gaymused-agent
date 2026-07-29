@@ -295,6 +295,15 @@ export class HandoffServer {
     return { id, url: `${this.baseUrl}/sign/${id}`, signed };
   }
 
+  /** Cancel a pending signing request without touching any on-chain state. */
+  cancelHandoff(id: string): boolean {
+    const entry = this.pending.get(id);
+    if (!entry || entry.used) return false;
+    entry.used = true;
+    this.pending.delete(id);
+    entry.reject(new Error("signing handoff cancelled"));
+    return true;
+  }
   async stop(): Promise<void> {
     await this.app.close();
   }
