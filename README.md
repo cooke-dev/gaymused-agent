@@ -1,6 +1,6 @@
-# Gaymused Agent
+# MidiumOR
 
-Gaymused Agent is the brain layer for Team Cooke's bounded payment rail.
+MidiumOR is the brain layer for Team Cooke's bounded payment rail.
 
 The agent reads the user's GIWA state. It proposes a payment. It explains the payment. It builds an unsigned OpenRails intent. The user signs the intent in a wallet. The OpenRails Vault enforces the payment limits on-chain.
 

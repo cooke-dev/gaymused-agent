@@ -123,7 +123,7 @@ export function buildIntent(
     amount: totalAllocationPool.toString(),
     flowVelocityPerSecond: flowVelocityPerSecond.toString(),
     lifespanSeconds,
-    metadataRef: "gaymused-agent",
+    metadataRef: "MidiumOR",
   };
   const metadataHash = hashOpenRailsMetadata(metadata);
   const paycardId = buildMetadataBoundPaycardId({ payer, nonceChannel: lane, nonceValue, metadataHash });
