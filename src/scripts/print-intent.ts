@@ -7,13 +7,13 @@ import type { OnChainState } from "../reader";
 
 // Synthetic state mirroring the real funded wallet (values copied from print-state output).
 const state: OnChainState = {
-  networkName: "arc-testnet-v2",
-  chainId: 5042002,
+  networkName: "giwa-testnet",
+  chainId: 91342,
   address: "0x0FBC60B5F91684Fa5f4E5f3B00795974EcE613CF",
   gasBalance: 19_931_919_397_000_000_000n,
-  tokenBalance: 19_931_919n, // 19.931919 USDC
+  tokenBalance: 19_931_919n, // 19.931919 orUSD
   tokenDecimals: 6,
-  tokenSymbol: "USDC",
+  tokenSymbol: "orUSD",
   hubAllowance: 0n,
   paycards: [],
   nonceLanes: [{ lane: 0, nextValue: 1 }],
@@ -24,31 +24,31 @@ const streamProposal: AgentProposal = {
   action: "open_stream",
   feasible: true,
   payment: {
-    token: "USDC",
+    token: "orUSD",
     recipient: "0x4b94939CBfc33aAC3e2651E959eD6D5d35AfA4D5",
     totalAllocation: "3",
     rate: { amount: "0.5", per: "hour" },
     durationSeconds: 21600,
   },
-  explanation: "Stream 0.5 USDC/hour for 6 hours, capped at 3 USDC.",
+  explanation: "Stream 0.5 orUSD/hour for 6 hours, capped at 3 orUSD.",
 };
 
 const oneTimeProposal: AgentProposal = {
   action: "open_one_time",
   feasible: true,
   payment: {
-    token: "USDC",
+    token: "orUSD",
     recipient: "0x4b94939CBfc33aAC3e2651E959eD6D5d35AfA4D5",
     totalAllocation: "1.25",
   },
-  explanation: "One-time payment of 1.25 USDC.",
+  explanation: "One-time payment of 1.25 orUSD.",
 };
 
 const infeasibleProposal: AgentProposal = {
   action: "open_one_time",
   feasible: false,
   reason: "cap exceeds balance",
-  payment: { token: "USDC", recipient: "0x4b94939CBfc33aAC3e2651E959eD6D5d35AfA4D5", totalAllocation: "100" },
+  payment: { token: "orUSD", recipient: "0x4b94939CBfc33aAC3e2651E959eD6D5d35AfA4D5", totalAllocation: "100" },
   explanation: "Should never be built.",
 };
 

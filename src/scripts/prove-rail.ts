@@ -1,4 +1,4 @@
-// prove-rail.ts: one-shot proof that the live Arc-testnet-V2 rail works: open a tiny bounded stream, read it back.
+// prove-rail.ts: one-shot proof that the live GIWA rail works: open a tiny bounded stream, read it back.
 import { ethers } from "ethers";
 import {
   LeptonOpenRailsClient,
@@ -22,7 +22,7 @@ async function main() {
   console.log(`Hub:     ${network.hubAddress}`);
   console.log(`Token:   ${network.tokenAddress} (${network.tokenSymbol})`);
 
-  // Static network + no batching: the public Arc RPC rate-limits bursts hard.
+  // Static network + no batching: public RPCs rate-limit bursts hard.
   const provider = new ethers.JsonRpcProvider(network.rpcUrl, network.chainId, {
     staticNetwork: ethers.Network.from(network.chainId),
     batchMaxCount: 1,
@@ -35,8 +35,8 @@ async function main() {
     console.error(
       "\nNo OPENRAILS_PAYER_PRIVATE_KEY in .env. Generated a throwaway testnet key for you:\n" +
         `  address: ${fresh.address}\n` +
-        "Add the key to .env as OPENRAILS_PAYER_PRIVATE_KEY, fund the address with Arc testnet USDC\n" +
-        "(gas on Arc IS USDC), then rerun. Key printed only this once:\n" +
+        "Add the key to .env as OPENRAILS_PAYER_PRIVATE_KEY, fund the address with GIWA test ETH for\n" +
+        "gas and orUSD for the escrow, then rerun. Key printed only this once:\n" +
         `  ${fresh.privateKey}`,
     );
     process.exit(1);
@@ -48,8 +48,8 @@ async function main() {
   console.log(`Payer:   ${payer}`);
   console.log(`Balance: ${ethers.formatUnits(balance, network.tokenDecimals)} ${network.tokenSymbol}`);
 
-  // Tiny bounded stream: 0.06 USDC total, metered over 10 minutes.
-  const totalAllocationPool = 60_000n; // 0.06 USDC at 6 decimals
+  // Tiny bounded stream: 0.06 orUSD total, metered over 10 minutes.
+  const totalAllocationPool = 60_000n; // 0.06 orUSD at 6 decimals
   const lifespanSeconds = 600;
   const flowVelocityPerSecond = totalAllocationPool / BigInt(lifespanSeconds); // 100/s, pool == velocity * lifespan
 
@@ -57,7 +57,7 @@ async function main() {
     console.error(
       `\nInsufficient ${network.tokenSymbol}: need at least ` +
         `${ethers.formatUnits(totalAllocationPool, network.tokenDecimals)} plus gas. ` +
-        "Fund the payer with Arc testnet USDC (e.g. faucet.circle.com → Arc Testnet) and rerun.",
+        "Fund the payer with GIWA test orUSD (and GIWA ETH for gas), then rerun.",
     );
     process.exit(1);
   }

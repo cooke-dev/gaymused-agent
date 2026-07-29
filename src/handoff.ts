@@ -1,6 +1,8 @@
 // handoff.ts: signing handoff. Serves human readable terms for a BuiltIntent, the user signs the
-// SDK's exact typed data (intent + optional EIP-2612 permit) in their OWN browser wallet, and only
-// signatures return. The daemon never sees, requests, or stores a key.
+// SDK's exact typed data in their OWN browser wallet, and, when escrow needs approving, sends a
+// standard ERC-20 approve() from that same wallet. Only the signature and the approve tx hash return.
+// The daemon never sees, requests, or stores a key: the signing and the approve both happen in the
+// user's wallet. orUSD has no EIP-2612 permit, so allowance is set by approve(), not a signed permit.
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import { ethers } from "ethers";
@@ -8,22 +10,17 @@ import {
   OPENRAILS_EIP712_TYPES,
   buildSettlementIntentValue,
   serializeEnvelope,
-  signUsdcPermit,
   type CryptographicEnvelopeV1,
-  type UsdcPermit,
 } from "openrails-sdk";
 import type { BuiltIntent } from "./intent-builder";
 import type { NetworkConfig } from "./config";
 
-/** EIP-712 payload for an EIP-2612 permit, built by the SDK and signed in the browser. */
-export interface PermitTypedData {
-  domain: ethers.TypedDataDomain;
-  types: Record<string, ethers.TypedDataField[]>;
-  message: Record<string, unknown>;
-  owner: string;
+/** A standard ERC-20 approve the payer must send so the hub can pull escrow under transferFrom. */
+export interface ApprovalRequest {
+  token: string;
   spender: string;
+  /** Amount to approve, in token base units. */
   value: string;
-  deadline: number;
 }
 
 export interface SignedHandoff {
@@ -32,14 +29,14 @@ export interface SignedHandoff {
   signature: string;
   /** Serialized CryptographicEnvelopeV1, exactly what the relay or hub consumes. */
   envelopeToken: string;
-  /** Present when a permit was requested and signed. Lets the open run gasless. */
-  permit?: UsdcPermit;
+  /** Present when an approve() was requested and sent. The tx that set the hub's allowance. */
+  approveTxHash?: string;
 }
 
 interface PendingHandoff {
   built: BuiltIntent;
   explanation: string;
-  permit?: PermitTypedData;
+  approval?: ApprovalRequest;
   expiresAt: number;
   used: boolean;
   resolve: (signed: SignedHandoff) => void;
@@ -47,56 +44,7 @@ interface PendingHandoff {
 }
 
 const DEFAULT_TTL_SECONDS = 600;
-// Structurally valid throwaway signature so the SDK's Signature.from() parses during capture.
-const DUMMY_SIGNATURE = "0x" + "11".repeat(32) + "22".repeat(32) + "1b";
-
-/**
- * Produce the permit EIP-712 payload without signing it, by handing the SDK a capturing account.
- * This keeps permit construction inside openrails-sdk instead of hand rolling EIP-2612.
- */
-export async function buildPermitTypedData(params: {
-  owner: string;
-  token: string;
-  spender: string;
-  value: bigint | string;
-  chainId: number;
-  provider: ethers.Provider;
-  deadline?: number;
-}): Promise<PermitTypedData> {
-  let captured: { domain: ethers.TypedDataDomain; types: Record<string, ethers.TypedDataField[]>; message: Record<string, unknown> } | undefined;
-
-  const capturingAccount = {
-    getAddress: async () => params.owner,
-    signTypedData: async (
-      domain: ethers.TypedDataDomain,
-      types: Record<string, ethers.TypedDataField[]>,
-      value: Record<string, unknown>,
-    ) => {
-      captured = { domain, types, message: value };
-      return DUMMY_SIGNATURE;
-    },
-  };
-
-  const shell = await signUsdcPermit(capturingAccount, {
-    token: params.token,
-    spender: params.spender,
-    value: params.value,
-    chainId: params.chainId,
-    provider: params.provider,
-    deadline: params.deadline,
-  });
-  if (!captured) throw new Error("permit typed data was not captured");
-
-  return {
-    domain: captured.domain,
-    types: captured.types,
-    message: captured.message,
-    owner: shell.owner,
-    spender: shell.spender,
-    value: shell.value,
-    deadline: shell.deadline,
-  };
-}
+const ERC20_APPROVE_IFACE = new ethers.Interface(["function approve(address spender,uint256 value)"]);
 
 /** Human readable terms derived deterministically from the intent's base units. */
 function describeTerms(built: BuiltIntent, network: NetworkConfig): Record<string, string> {
@@ -117,12 +65,8 @@ function describeTerms(built: BuiltIntent, network: NetworkConfig): Record<strin
   return terms;
 }
 
-function jsonSafe(value: unknown): unknown {
-  return JSON.parse(JSON.stringify(value, (_k, v) => (typeof v === "bigint" ? v.toString() : v)));
-}
-
 function pageHtml(entry: PendingHandoff, network: NetworkConfig): string {
-  const { built, explanation, permit } = entry;
+  const { built, explanation, approval } = entry;
   const eip712Domain = [
     { name: "name", type: "string" },
     { name: "version", type: "string" },
@@ -135,20 +79,19 @@ function pageHtml(entry: PendingHandoff, network: NetworkConfig): string {
     domain: built.domain,
     message: buildSettlementIntentValue(built.intent),
   };
-  const permitTypedData = permit
+  const approveTx = approval
     ? {
-        types: { EIP712Domain: eip712Domain, ...permit.types },
-        primaryType: "Permit",
-        domain: permit.domain,
-        message: jsonSafe(permit.message),
+        to: approval.token,
+        data: ERC20_APPROVE_IFACE.encodeFunctionData("approve", [approval.spender, approval.value]),
+        valueLabel: `${ethers.formatUnits(approval.value, network.tokenDecimals)} ${network.tokenSymbol}`,
       }
     : null;
   const walletChain = {
     chainId: "0x" + network.chainId.toString(16),
     chainName: network.name,
     nativeCurrency: {
-      name: network.gasIsSeparateAsset ? "Ether" : network.tokenSymbol,
-      symbol: network.gasIsSeparateAsset ? "ETH" : network.tokenSymbol,
+      name: "Ether", // gas on GIWA is native ETH, separate from the orUSD settlement token
+      symbol: "ETH",
       decimals: 18,
     },
     rpcUrls: [network.rpcUrl],
@@ -156,11 +99,11 @@ function pageHtml(entry: PendingHandoff, network: NetworkConfig): string {
   const rows = Object.entries(describeTerms(built, network))
     .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`)
     .join("");
-  const permitNote = permit
-    ? `<p><strong>Two signatures.</strong> The first authorizes the payment terms. The second is a
-       spending permit for exactly ${ethers.formatUnits(permit.value, network.tokenDecimals)}
-       ${network.tokenSymbol}, which lets the payment open without you paying any gas. Both are
-       signatures only, neither is a transaction.</p>`
+  const approveNote = approveTx
+    ? `<p><strong>One signature, then one transaction.</strong> First you sign the payment terms (a
+       signature, not a transaction). Then you send a standard token approval of ${approveTx.valueLabel}
+       so the Vault can pull the escrow you authorized. The approval is an on-chain transaction and
+       costs a little GIWA ETH. The agent never holds your key: both happen in your own wallet.</p>`
     : "";
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Review and sign</title>
@@ -178,14 +121,15 @@ button{font-size:1.05rem;padding:.6rem 1.4rem;cursor:pointer}
 <p class="explain">${explanation}</p>
 <table>${rows}</table>
 <p>The Vault enforces these bounds on-chain. Nothing can move more than the hard cap, even if the agent misbehaves.</p>
-${permitNote}
+${approveNote}
 <button id="sign">Connect wallet and sign</button>
 <div id="status"></div>
 <script>
 const INTENT_DATA = ${JSON.stringify(intentTypedData)};
-const PERMIT_DATA = ${JSON.stringify(permitTypedData)};
+const APPROVE_TX = ${JSON.stringify(approveTx)};
 const WALLET_CHAIN = ${JSON.stringify(walletChain)};
 const status = (m) => { document.getElementById("status").textContent = m; };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 document.getElementById("sign").onclick = async () => {
   try {
     if (!window.ethereum) { status("No browser wallet found. Install MetaMask or similar."); return; }
@@ -197,27 +141,35 @@ document.getElementById("sign").onclick = async () => {
         await window.ethereum.request({ method: "wallet_addEthereumChain", params: [WALLET_CHAIN] });
       }
     }
-    status("Signature 1 of " + (PERMIT_DATA ? "2" : "1") + ": review the payment terms in your wallet.");
+    status("Step 1: review and sign the payment terms in your wallet.");
     const signature = await window.ethereum.request({
       method: "eth_signTypedData_v4",
       params: [address, JSON.stringify(INTENT_DATA)],
     });
-    let permitSignature = null;
-    if (PERMIT_DATA) {
-      status("Signature 2 of 2: approve the spending permit in your wallet.");
-      permitSignature = await window.ethereum.request({
-        method: "eth_signTypedData_v4",
-        params: [address, JSON.stringify(PERMIT_DATA)],
+    let approveTxHash = null;
+    if (APPROVE_TX) {
+      status("Step 2: approve the token spend in your wallet (a transaction).");
+      approveTxHash = await window.ethereum.request({
+        method: "eth_sendTransaction",
+        params: [{ from: address, to: APPROVE_TX.to, data: APPROVE_TX.data }],
       });
+      status("Waiting for the approval to confirm on-chain...");
+      let receipt = null;
+      for (let i = 0; i < 60 && !receipt; i++) {
+        await sleep(2000);
+        receipt = await window.ethereum.request({ method: "eth_getTransactionReceipt", params: [approveTxHash] });
+      }
+      if (!receipt) { status("Approval did not confirm in time. Check your wallet and retry."); return; }
+      if (receipt.status !== "0x1") { status("Approval transaction reverted on-chain."); return; }
     }
-    status("Sending signatures back to the agent...");
+    status("Sending the result back to the agent...");
     const res = await fetch(location.pathname, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ signature, address, permitSignature }),
+      body: JSON.stringify({ signature, address, approveTxHash }),
     });
     const body = await res.json();
-    status(res.ok ? "Signed. You can close this tab, the agent is taking it from here." : "Rejected: " + body.error);
+    status(res.ok ? "Done. You can close this tab, the agent is taking it from here." : "Rejected: " + body.error);
   } catch (err) { status("Failed: " + (err.message || err)); }
 };
 </script></body></html>`;
@@ -253,12 +205,12 @@ export class HandoffServer {
 
     this.app.post<{
       Params: { id: string };
-      Body: { signature?: string; address?: string; permitSignature?: string | null };
+      Body: { signature?: string; address?: string; approveTxHash?: string | null };
     }>("/sign/:id", async (req, reply) => {
       const { entry, error } = this.lookup(req.params.id);
       if (!entry) return reply.code(410).send({ error });
 
-      const { signature, address, permitSignature } = req.body ?? {};
+      const { signature, address, approveTxHash } = req.body ?? {};
       if (!signature || !address || !ethers.isAddress(address)) {
         return reply.code(400).send({ error: "signature and address are required" });
       }
@@ -279,33 +231,11 @@ export class HandoffServer {
         return reply.code(400).send({ error: `signature recovers to ${recovered}, not the connected address` });
       }
 
-      let permit: UsdcPermit | undefined;
-      if (entry.permit) {
-        if (!permitSignature) return reply.code(400).send({ error: "permit signature is required" });
-        let permitSigner: string;
-        try {
-          permitSigner = ethers.verifyTypedData(
-            entry.permit.domain,
-            entry.permit.types,
-            entry.permit.message,
-            permitSignature,
-          );
-        } catch {
-          return reply.code(400).send({ error: "permit signature does not verify" });
-        }
-        if (permitSigner.toLowerCase() !== recovered.toLowerCase()) {
-          return reply.code(400).send({ error: "permit was signed by a different address than the intent" });
-        }
-        const { v, r, s } = ethers.Signature.from(permitSignature);
-        permit = {
-          owner: entry.permit.owner,
-          spender: entry.permit.spender,
-          value: entry.permit.value,
-          deadline: entry.permit.deadline,
-          v,
-          r,
-          s,
-        };
+      // When escrow needs approving, the payer sends approve() from their own wallet and returns its
+      // hash. The real guard is on-chain: the open re-reads the allowance before pulling escrow, so
+      // a bad or missing hash simply blocks the open rather than moving any money.
+      if (entry.approval && !approveTxHash) {
+        return reply.code(400).send({ error: "approval transaction hash is required" });
       }
 
       entry.used = true; // single use, burn before resolving
@@ -321,7 +251,7 @@ export class HandoffServer {
         signerAddress: recovered,
         signature,
         envelopeToken: serializeEnvelope(envelope),
-        permit,
+        approveTxHash: approveTxHash ?? undefined,
       });
       return reply.send({ ok: true, signer: recovered });
     });
@@ -334,11 +264,11 @@ export class HandoffServer {
     return this.baseUrl;
   }
 
-  /** Register an intent for signing. Returns the one-time URL and a promise for the signatures. */
+  /** Register an intent for signing. Returns the one-time URL and a promise for the result. */
   createHandoff(
     built: BuiltIntent,
     explanation: string,
-    permit?: PermitTypedData,
+    approval?: ApprovalRequest,
   ): { id: string; url: string; signed: Promise<SignedHandoff> } {
     const id = randomBytes(16).toString("hex");
     const ttl = (this.opts.ttlSeconds ?? DEFAULT_TTL_SECONDS) * 1000;
@@ -348,7 +278,7 @@ export class HandoffServer {
     const entry: PendingHandoff = {
       built,
       explanation,
-      permit,
+      approval,
       expiresAt: Date.now() + ttl,
       used: false,
       resolve,

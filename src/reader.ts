@@ -121,7 +121,7 @@ export async function readOnChainState(
   const latestBlock = await provider.getBlockNumber();
   const fromBlock = Math.max(0, latestBlock - lookbackBlocks);
 
-  // Gas and stablecoin are distinct assets (only legacy Arc conflates them), read both.
+  // Gas (native ETH) and the orUSD settlement token are distinct assets, read both.
   const gasBalance = await provider.getBalance(user);
   const tokenBalance = await readTokenBalance(provider, network.tokenAddress, user);
   const hubAllowance = await readTokenAllowance(provider, network.tokenAddress, user, network.hubAddress);
