@@ -16,7 +16,8 @@
     "try-handoff": "tsx src/scripts/try-handoff.ts",
     "selftest-handoff": "tsx src/scripts/selftest-handoff.ts",
     "money-shot": "tsx src/scripts/money-shot.ts",
-    "sidecar": "tsx src/scripts/telegram-sidecar.ts"
+    "sidecar": "tsx src/scripts/telegram-sidecar.ts",
+    "sidecar:watch": "tsx src/scripts/telegram-supervisor.ts"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
