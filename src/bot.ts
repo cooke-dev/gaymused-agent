@@ -46,7 +46,17 @@ export class TelegramSidecar {
       );
     }
     await this.handoff.start(); // ONE long-lived signing server for the whole session
-    const me = await this.tg.getMe();
+    await this.tg.setMyDescription(
+      "Bounded-payment copilot on GIWA. Check your state, then ask for a capped stream or one-time payment. You sign and approve in your own wallet; the Vault enforces the limit.",
+    );
+    await this.tg.setMyCommands([
+      { command: "start", description: "Show the welcome guide" },
+      { command: "help", description: "Show commands and payment examples" },
+      { command: "wallet", description: "Set the wallet that will sign" },
+      { command: "state", description: "Read balance and active streams" },
+      { command: "stream", description: "Request a capped streaming payment" },
+      { command: "pay", description: "Request a capped one-time payment" },
+    ]);    const me = await this.tg.getMe();
     console.log(`Sidecar up on ${this.cfg.network.name} (chain ${this.cfg.network.chainId}).`);
     console.log(`Bot: @${me.username}  Agent wallet: ${this.agentWallet.address} (${ethers.formatEther(gas)} ETH)`);
     this.running = true;
@@ -96,6 +106,18 @@ export class TelegramSidecar {
       if (text.startsWith("/start") || text.startsWith("/help")) return this.cmdHelp(chatId);
       if (text.startsWith("/wallet")) return this.cmdWallet(chatId, text);
       if (text.startsWith("/state")) return this.cmdState(chatId);
+      if (/^\/stream(?:@\S+)?$/i.test(text)) {
+        return this.send(chatId, "Usage: /stream 0.09 orUSD to 0xRecipient over 30 minutes");
+      }
+      if (/^\/pay(?:@\S+)?$/i.test(text)) {
+        return this.send(chatId, "Usage: /pay 0.25 orUSD to 0xRecipient");
+      }
+      if (/^\/stream(?:@\S+)?\s+/i.test(text)) {
+        return this.handleRequest(chatId, text.replace(/^\/stream(?:@\S+)?\s+/i, "").trim());
+      }
+      if (/^\/pay(?:@\S+)?\s+/i.test(text)) {
+        return this.handleRequest(chatId, text.replace(/^\/pay(?:@\S+)?\s+/i, "").trim());
+      }
       if (text.startsWith("/")) return this.send(chatId, "Unknown command. Try /help.");
       return await this.handleRequest(chatId, text);
     } catch (err) {

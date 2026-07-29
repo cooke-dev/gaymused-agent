@@ -14,6 +14,10 @@ export interface TgMessage {
   text?: string;
 }
 
+export interface TgBotCommand {
+  command: string;
+  description: string;
+}
 interface TgUpdate {
   update_id: number;
   message?: TgMessage;
@@ -53,6 +57,13 @@ export class TelegramClient {
    * Long-poll for new updates. Blocks up to timeoutSeconds on the server side; the client aborts a
    * little later so a dropped connection cannot hang the loop forever.
    */
+  async setMyCommands(commands: TgBotCommand[]): Promise<void> {
+    await this.call("setMyCommands", { commands });
+  }
+
+  async setMyDescription(description: string): Promise<void> {
+    await this.call("setMyDescription", { description });
+  }
   async getUpdates(offset: number, timeoutSeconds: number): Promise<TgUpdate[]> {
     const controller = new AbortController();
     const guard = setTimeout(() => controller.abort(), (timeoutSeconds + 10) * 1000);
