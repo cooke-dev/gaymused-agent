@@ -49,8 +49,6 @@ const PRESETS: Record<string, NetworkConfig> = {
 
 export interface AppConfig {
   network: NetworkConfig;
-  handoffHost: string;
-  handoffPublicUrl?: string;
   /** Testnet payer key for the agent's own gas wallet; production users sign via the handoff, not this key. */
   payerPrivateKey?: string;
   openRouterApiKey?: string;
@@ -88,8 +86,6 @@ export function loadConfig(): AppConfig {
 
   return {
     network,
-    handoffHost: process.env.OPENRAILS_HANDOFF_HOST || "127.0.0.1",
-    handoffPublicUrl: process.env.OPENRAILS_HANDOFF_PUBLIC_URL || undefined,
     payerPrivateKey: process.env.OPENRAILS_PAYER_PRIVATE_KEY || undefined,
     openRouterApiKey: process.env.OPENROUTER_API_KEY || undefined,
     openRouterModel: process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.5",

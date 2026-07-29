@@ -35,7 +35,7 @@ export class TelegramSidecar {
     this.provider = makeProvider(cfg.network);
     this.agentWallet = new ethers.Wallet(cfg.payerPrivateKey, this.provider);
     this.tg = new TelegramClient(cfg.telegramBotToken);
-    this.handoff = new HandoffServer(cfg.network, { ttlSeconds: HANDOFF_TTL_SECONDS, host: cfg.handoffHost, publicUrl: cfg.handoffPublicUrl });
+    this.handoff = new HandoffServer(cfg.network, { ttlSeconds: HANDOFF_TTL_SECONDS });
     this.brainOpts = { apiKey: cfg.openRouterApiKey, model: cfg.openRouterModel };
   }
 
