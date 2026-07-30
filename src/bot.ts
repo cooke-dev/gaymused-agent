@@ -15,6 +15,7 @@ import { TelegramClient, type TgMessage } from "./telegram";
 const HANDOFF_TTL_SECONDS = 1800; // matches the 30-minute open window the streams use
 const POLL_TIMEOUT_SECONDS = 30;
 const ACCRUAL_WAIT_MS = 20_000;
+const TELEGRAM_START_RETRY_MS = 5_000;
 
 export class TelegramSidecar {
   private readonly provider: ethers.JsonRpcProvider;
@@ -48,10 +49,16 @@ export class TelegramSidecar {
       );
     }
     await this.handoff.start(); // ONE long-lived signing server for the whole session
-    await this.tg.setMyDescription(
-      "Bounded-payment copilot on GIWA. Check your state, then ask for a capped stream or one-time payment. You sign and approve in your own wallet; the Vault enforces the limit.",
-    );
-    await this.tg.setMyCommands([
+    await this.configureTelegramWithRetry();
+    const me = await this.tg.getMe();
+    console.log(`Sidecar up on ${this.cfg.network.name} (chain ${this.cfg.network.chainId}).`);
+    console.log(`Bot: @${me.username}  Agent wallet: ${this.agentWallet.address} (${ethers.formatEther(gas)} ETH)`);
+    this.running = true;
+    await this.loop();
+  }
+
+  private async configureTelegramWithRetry(): Promise<void> {
+    const commands = [
       { command: "start", description: "Show the welcome guide" },
       { command: "help", description: "Show commands and payment examples" },
       { command: "wallet", description: "Set the wallet that will sign" },
@@ -59,13 +66,24 @@ export class TelegramSidecar {
       { command: "stream", description: "Request a capped streaming payment" },
       { command: "pay", description: "Request a capped one-time payment" },
       { command: "cancel", description: "Cancel a pending signing request" },
-    ]);    const me = await this.tg.getMe();
-    console.log(`Sidecar up on ${this.cfg.network.name} (chain ${this.cfg.network.chainId}).`);
-    console.log(`Bot: @${me.username}  Agent wallet: ${this.agentWallet.address} (${ethers.formatEther(gas)} ETH)`);
-    this.running = true;
-    await this.loop();
+    ];
+    while (true) {
+      try {
+        await this.tg.setMyDescription(
+          "Bounded-payment copilot on GIWA. Check your state, then ask for a capped stream or one-time payment. You sign and approve in your own wallet; the Vault enforces the limit.",
+        );
+        await this.tg.setMyCommands(commands);
+        await this.tg.getMe();
+        return;
+      } catch (err) {
+        console.error(
+          "Telegram startup check failed; retrying:",
+          err instanceof Error ? err.message : err,
+        );
+        await new Promise((resolve) => setTimeout(resolve, TELEGRAM_START_RETRY_MS));
+      }
+    }
   }
-
   async stop(): Promise<void> {
     this.running = false;
     await this.handoff.stop();
