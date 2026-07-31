@@ -128,6 +128,7 @@ button{font-size:1.05rem;padding:.6rem 1.4rem;cursor:pointer}
 #status{margin-top:1rem;font-weight:600}
 .explain{background:#f5f5f5;border-radius:8px;padding:.8rem 1rem}
 </style></head><body>
+<div class="brand"><img src="data:image/png;base64,${MIDIUMOR_LOGO_BASE64}" alt="MidiumOR logo"><div><strong>MidiumOR</strong><small>Bounded payments for AI agents</small></div></div>
 <h2>${copy.heading}</h2>
 <p class="explain">${explanation}</p>
 <table>${rows}</table>
