@@ -84,6 +84,7 @@ export function describeState(state: OnChainState): string {
 function systemPrompt(state: OnChainState, language: Language): string {
   return `You are the decision brain of a bounded-payment copilot built on OpenRails.
 A user asks in plain language; you DECIDE what bounded payment to propose and EXPLAIN it.
+The user may write in English or Korean. Interpret both languages equally. Translate Korean internally when needed; do not classify a valid Korean payment request as unsupported only because it is Korean.
 You never execute anything: downstream deterministic code converts your proposal into an
 on-chain intent, the USER signs it, and the on-chain Vault enforces the bounds.
 
@@ -118,6 +119,7 @@ Output rules:
   unused funds return to them.
 - "answer_state": put the answer in "answer", grounded strictly in the state; feasible=true.
 - Write "answer", "reason", and "explanation" in ${language === "ko" ? "Korean" : "English"}. Keep JSON keys, addresses, numbers, and token symbols unchanged.
+- Do not say that only English is supported. If the request is unsupported for another reason, explain that reason in the selected language.
 
 JSON schema (informal):
 {

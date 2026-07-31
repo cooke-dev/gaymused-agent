@@ -264,7 +264,7 @@ export class TelegramSidecar {
       return this.send(chatId, proposal.answer ?? proposal.explanation);
     }
     if (proposal.action === "unsupported") {
-      return this.send(chatId, `I can't do that. ${proposal.reason ?? proposal.explanation}`);
+      return this.send(chatId, t(language, "unsupported", { reason: proposal.reason ?? proposal.explanation }));
     }
 
     // THE OVER-LIMIT BLOCK, surfaced in chat before anything is signed or spent.
