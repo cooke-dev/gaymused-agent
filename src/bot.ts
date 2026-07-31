@@ -146,7 +146,9 @@ export class TelegramSidecar {
     this.ensureLanguage(msg);
     try {
       if (text.startsWith("/start") || text.startsWith("/help")) return this.cmdHelp(chatId);
-      if (/^\/(?:language|lang)(?:@\S+)?(?:\s|$)/i.test(text)) return this.cmdLanguage(chatId, text);
+      if (/^\/?(?:language|lang)(?:@\S+)?(?:\s|$)/i.test(text)) return this.cmdLanguage(chatId, text);
+      if (/^\/?(?:ko|korean)$/i.test(text)) return this.cmdLanguage(chatId, "/language ko");
+      if (/^\/?(?:en|english)$/i.test(text)) return this.cmdLanguage(chatId, "/language en");
       if (text.startsWith("/wallet")) return this.cmdWallet(chatId, text);
       if (text.startsWith("/state")) return this.cmdState(chatId);
       if (/^\/cancel(?:@\S+)?$/i.test(text)) return this.cmdCancel(chatId);
@@ -195,7 +197,7 @@ export class TelegramSidecar {
   }
 
   private cmdLanguage(chatId: number, text: string): Promise<void> {
-    const arg = text.replace(/^\/(?:language|lang)(?:@\S+)?\s*/i, "").trim().toLowerCase();
+    const arg = text.replace(/^\/?(?:language|lang)(?:@\S+)?\s*/i, "").trim().toLowerCase();
     if (!arg) return this.send(chatId, t(this.languageFor(chatId), "languagePrompt"));
     if (arg === "en" || arg === "english") {
       this.languages.set(chatId, "en");
