@@ -55,13 +55,17 @@ export interface BrainOptions {
 
 const PERIOD_SECONDS: Record<string, number> = { minute: 60, hour: 3600, day: 86400, week: 604800 };
 
-function fmtCard(c: PaycardSummary, decimals: number, symbol: string): string {
-  return (
-    `${c.kind} paycard ${c.paycardId.slice(0, 10)}... [${c.status}] as ${c.role}: ` +
-    `cap ${ethers.formatUnits(c.totalAllocationPool, decimals)} ${symbol}, ` +
-    `remaining ${ethers.formatUnits(c.availableBalance, decimals)} ${symbol}, ` +
-    `recipient ${c.recipient}`
-  );
+function fmtCard(c: PaycardSummary, decimals: number, symbol: string, language: Language): string {
+  return t(language, "stateCard", {
+    kind: c.kind,
+    id: c.paycardId.slice(0, 10),
+    status: c.status,
+    role: c.role,
+    cap: ethers.formatUnits(c.totalAllocationPool, decimals),
+    remaining: ethers.formatUnits(c.availableBalance, decimals),
+    symbol,
+    recipient: c.recipient,
+  });
 }
 
 /** Deterministic, human-units summary of the state the LLM is allowed to know. */
@@ -69,16 +73,15 @@ export function describeState(state: OnChainState, language: Language = "en"): s
   const d = state.tokenDecimals;
   const s = state.tokenSymbol;
   const lines = [
-    `network: ${state.networkName} (chain ${state.chainId})`,
-    `wallet: ${state.address}`,
-    `${s} balance: ${ethers.formatUnits(state.tokenBalance, d)}`,
-    `native gas balance: ${ethers.formatEther(state.gasBalance)}`,
-    `paycards (${state.paycards.length}):`,
-    ...state.paycards.map((c) => `  - ${fmtCard(c, d, s)}`),
+    t(language, "stateNetwork", { network: state.networkName, chain: state.chainId }),
+    t(language, "stateWallet", { address: state.address }),
+    t(language, "stateBalance", { symbol: s, balance: ethers.formatUnits(state.tokenBalance, d) }),
+    t(language, "stateGas", { balance: ethers.formatEther(state.gasBalance) }),
+    t(language, "statePaycards", { count: state.paycards.length }),
+    ...state.paycards.map((c) => fmtCard(c, d, s, language)),
   ];
   return lines.join("\n");
 }
-
 // ---------- prompt ----------
 
 function systemPrompt(state: OnChainState, language: Language): string {
@@ -212,6 +215,11 @@ async function callOpenRouter(opts: BrainOptions, system: string, user: string):
   return content;
 }
 
+function hasSelectedLanguage(p: AgentProposal, language: Language): boolean {
+  if (language !== "ko") return true;
+  const text = [p.answer, p.reason, p.explanation].filter(Boolean).join(" ");
+  return /[가-힣]/.test(text);
+}
 function extractJson(text: string): unknown {
   const trimmed = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
   return JSON.parse(trimmed);
@@ -234,6 +242,7 @@ export async function decide(
     const raw = await callOpenRouter(opts, system, user);
     try {
       const parsed = ProposalSchema.parse(extractJson(raw));
+      if (!hasSelectedLanguage(parsed, opts.language ?? "en")) throw new Error("model response did not use the selected language");
       opts.onAttempt?.(attempt);
       return checkProposal(parsed, state);
     } catch (err) {

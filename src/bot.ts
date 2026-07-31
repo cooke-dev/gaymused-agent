@@ -167,7 +167,7 @@ export class TelegramSidecar {
       if (text.startsWith("/")) return this.send(chatId, t(this.languageFor(chatId), "unknown"));
       return await this.handleRequest(chatId, text);
     } catch (err) {
-      await this.send(chatId, `Something went wrong: ${err instanceof Error ? err.message : String(err)}`);
+      await this.send(chatId, t(this.languageFor(chatId), "error", { reason: err instanceof Error ? err.message : String(err) }));
     }
   }
 
@@ -306,7 +306,7 @@ export class TelegramSidecar {
       [
         proposal.explanation,
         "",
-        this.describeBounds(proposal),
+        this.describeBounds(proposal, language),
         "",
         "Open this on this computer and sign, then send the approve() in your wallet:",
         url,
@@ -321,55 +321,59 @@ export class TelegramSidecar {
     try {
       handoff = await signed;
     } catch {
-      return this.send(chatId, "That signing link expired before it was used. Ask again for a fresh one. Nothing moved.");
+      return this.send(chatId, t(language, "expired"));
     }
 
     if (this.pendingHandoffs.get(chatId) === handoffId) this.pendingHandoffs.delete(chatId);
 
     if (handoff.approveTxHash) {
-      await this.send(chatId, `Signed by ${handoff.signerAddress}. Approval confirmed:\n${this.txLink(handoff.approveTxHash)}\nOpening now...`);
+      await this.send(chatId, t(language, "signedApproval", { address: handoff.signerAddress, link: this.txLink(handoff.approveTxHash) }));
     } else {
-      await this.send(chatId, `Signed by ${handoff.signerAddress}. Opening now...`);
+      await this.send(chatId, t(language, "signedOpening", { address: handoff.signerAddress }));
     }
 
     const opened = await openViaHub(handoff.envelopeToken, this.agentWallet, net, { pool, payer: wallet });
     if (!opened.ok) {
       return this.send(
         chatId,
-        [`⛔ Blocked on-chain by the ${opened.blockedBy}. Nothing moved.`, opened.reason].join("\n"),
+        [t(language, "blocked", { blockedBy: opened.blockedBy, reason: opened.reason })].join("\n"),
       );
     }
-    await this.send(chatId, `Opened. The escrow is now bounded in the Vault:\n${this.txLink(opened.txHash)}`);
+    await this.send(chatId, t(language, "opened", { link: this.txLink(opened.txHash) }));
 
     // Settle once to show value flowing within the cap. This is a permissionless crank: it can never
     // pay out more than the Vault has metered, so it cannot exceed what was signed.
-    await this.send(chatId, "Letting value accrue, then settling once to show funds flowing within the cap...");
+    await this.send(chatId, t(language, "accrual"));
     await new Promise((r) => setTimeout(r, ACCRUAL_WAIT_MS));
     const settled = await settleStream(built.intent.paycardId, this.agentWallet, net, this.provider);
     const fmt = (v: bigint | string) => ethers.formatUnits(v, state.tokenDecimals);
     if (!settled.ok) {
-      await this.send(chatId, `Settle did not run: ${settled.reason}`);
+      await this.send(chatId, t(language, "settleFailed", { reason: settled.reason }));
     } else {
       const view = await readStream(built.intent.paycardId, net, this.provider);
       await this.send(
         chatId,
-        [
-          `Settled ${fmt(settled.settledAmount)} ${net.tokenSymbol} to the recipient:`,
-          this.txLink(settled.txHash),
-          `Remaining in the Vault: ${fmt(view.availableBalance)} of ${fmt(view.totalAllocationPool)} ${net.tokenSymbol}.`,
-          "The agent can never move more than the cap you signed.",
-        ].join("\n"),
-      );
-    }
+        t(language, "settled", {
+          amount: fmt(settled.settledAmount),
+          symbol: net.tokenSymbol,
+          link: this.txLink(settled.txHash),
+          remaining: fmt(view.availableBalance),
+          total: fmt(view.totalAllocationPool),
+        }),
+      );    }
   }
 
-  private describeBounds(proposal: Awaited<ReturnType<typeof decide>>): string {
+  private describeBounds(proposal: Awaited<ReturnType<typeof decide>>, language: Language): string {
     const sym = this.cfg.network.tokenSymbol;
     const pay = proposal.payment!;
-    const lines = [`Cap (Vault enforced): ${pay.totalAllocation} ${sym}`, `Recipient: ${pay.recipient}`];
+    const lines = [
+      t(language, "cap", { amount: pay.totalAllocation, symbol: sym }),
+      t(language, "recipient", { address: pay.recipient }),
+    ];
     if (pay.rate && proposal.action === "open_stream") {
-      lines.push(`Rate: ${pay.rate.amount} ${sym}/${pay.rate.per}`);
-      if (pay.durationSeconds) lines.push(`Duration: ${pay.durationSeconds} seconds`);
+      const per = language === "ko" ? ({ minute: "분", hour: "시간", day: "일", week: "주" } as Record<string, string>)[pay.rate.per] : pay.rate.per;
+      lines.push(t(language, "rate", { amount: pay.rate.amount, symbol: sym, per }));
+      if (pay.durationSeconds) lines.push(t(language, "duration", { seconds: pay.durationSeconds }));
     }
     return lines.join("\n");
   }
