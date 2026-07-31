@@ -1,0 +1,94 @@
+export type Language = "en" | "ko";
+
+export function normalizeLanguage(value?: string): Language {
+  return value?.toLowerCase().startsWith("ko") ? "ko" : "en";
+}
+
+const messages: Record<Language, Record<string, string>> = {
+  en: {
+    languagePrompt: "Choose a language: /language en or /language ko",
+    languageSetEn: "Language set to English.",
+    languageSetKo: "언어가 한국어로 설정되었습니다.",
+    languageUsage: "Usage: /language en or /language ko",
+    helpTitle: "MidiumOR | Bounded-payment copilot on {network}.",
+    helpIntro: "I propose {symbol} payments with a hard cap. You sign and approve in your own wallet.",
+    helpVault: "The on-chain Vault enforces the bounds. I never hold your key.",
+    helpWallet: "1) Set your wallet:  /wallet 0xYourAddress",
+    helpState: "2) Check it:         /state",
+    helpCancel: "3) Cancel a pending signing link: /cancel",
+    helpAsk: "4) Ask in plain language, for example:",
+    helpStream: "   - stream 0.09 {symbol} to 0xRecipient over 30 minutes",
+    helpPay: "   - pay 0.25 {symbol} to 0xRecipient",
+    helpSafety: "I refuse anything over your balance before you sign, and the Vault caps what I can move after you sign.",
+    usageStream: "Usage: /stream 0.09 {symbol} to 0xRecipient over 30 minutes",
+    usagePay: "Usage: /pay 0.25 {symbol} to 0xRecipient",
+    unknown: "Unknown command. Try /help.",
+    noWallet: "Set your wallet first: /wallet 0xYourAddress",
+    walletSet: "Wallet set to {address}. This is the address you will sign and approve with. Try /state.",
+    readingState: "Reading your on-chain state...",
+    thinking: "Reading your on-chain state and thinking...",
+    brainFail: "I could not turn that into a bounded payment. Try: stream 0.09 {symbol} to 0xRecipient over 30 minutes",
+    unsupported: "I cannot do that. {reason}",
+    refusalHeader: "Refused before signing.",
+    refusalBody: "The budget is bounded, so I will not ask you to authorize an action the Vault cannot back.",
+    nothingMoved: "Nothing was signed and nothing moved.",
+    noPending: "There is no pending signing request to cancel.",
+    cancelled: "Pending signing request cancelled. Nothing was signed and nothing moved.",
+    instruction: "Open this on this computer and sign, then send the approve() in your wallet:",
+    deceptive: "Your wallet may show a deceptive request warning. This is a known false positive for local testnet signing. Check the request details before confirming.",
+    linkValid: "The link is valid for {minutes} minutes.",
+    signedApproval: "Signed by {address}. Approval confirmed:\n{link}\nOpening now...",
+    signedOpening: "Signed by {address}. Opening now...",
+    opened: "Opened. The escrow is now bounded in the Vault:\n{link}",
+    accrual: "Letting value accrue, then settling once to show funds flowing within the cap...",
+    settleFailed: "Settle did not run: {reason}",
+    settled: "Settled {amount} {symbol} to the recipient:\n{link}\nRemaining in the Vault: {remaining} of {total} {symbol}.\nThe agent can never move more than the cap you signed.",
+  },
+  ko: {
+    languagePrompt: "언어를 선택하세요: /language en 또는 /language ko",
+    languageSetEn: "언어가 영어로 설정되었습니다.",
+    languageSetKo: "언어가 한국어로 설정되었습니다.",
+    languageUsage: "사용법: /language en 또는 /language ko",
+    helpTitle: "MidiumOR | {network}에서 한도가 있는 결제를 지원합니다.",
+    helpIntro: "{symbol} 결제를 제안합니다. 사용자가 자신의 지갑에서 한도를 확인하고 승인합니다.",
+    helpVault: "온체인 Vault가 한도를 집행합니다. 저는 개인 키를 보관하지 않습니다.",
+    helpWallet: "1) 지갑 설정:  /wallet 0xYourAddress",
+    helpState: "2) 상태 확인:  /state",
+    helpCancel: "3) 대기 중인 서명 링크 취소: /cancel",
+    helpAsk: "4) 자연어로 요청하세요. 예시:",
+    helpStream: "   - 30분 동안 0xRecipient에게 0.09 {symbol} 스트리밍",
+    helpPay: "   - 0xRecipient에게 {symbol} 0.25 결제",
+    helpSafety: "서명 전에 잔액을 초과하는 요청을 거부합니다. 서명 후에도 Vault가 한도를 집행합니다.",
+    usageStream: "사용법: /stream 0.09 {symbol} to 0xRecipient over 30 minutes",
+    usagePay: "사용법: /pay 0.25 {symbol} to 0xRecipient",
+    unknown: "알 수 없는 명령입니다. /help를 사용하세요.",
+    noWallet: "먼저 지갑을 설정하세요: /wallet 0xYourAddress",
+    walletSet: "지갑이 {address}로 설정되었습니다. 이 지갑으로 서명과 승인을 진행합니다. /state를 사용하세요.",
+    readingState: "온체인 상태를 읽는 중입니다...",
+    thinking: "온체인 상태를 읽고 요청을 확인하는 중입니다...",
+    brainFail: "한도가 있는 결제로 변환할 수 없습니다. 예시: stream 0.09 {symbol} to 0xRecipient over 30 minutes",
+    unsupported: "이 요청은 처리할 수 없습니다. {reason}",
+    refusalHeader: "서명 전에 거부되었습니다.",
+    refusalBody: "예산에는 한도가 있습니다. Vault가 보장할 수 없는 작업은 승인하도록 요청하지 않습니다.",
+    nothingMoved: "서명되지 않았고 자금도 이동하지 않았습니다.",
+    noPending: "취소할 대기 중인 서명 요청이 없습니다.",
+    cancelled: "대기 중인 서명 요청을 취소했습니다. 서명되지 않았고 자금도 이동하지 않았습니다.",
+    instruction: "이 컴퓨터에서 링크를 열고 서명한 다음, 지갑에서 approve()를 보내세요:",
+    deceptive: "지갑에 사기성 요청 경고가 표시될 수 있습니다. 로컬 테스트넷 서명에서 발생하는 알려진 오탐입니다. 확인 전에 요청 내용을 검토하세요.",
+    linkValid: "링크는 {minutes}분 동안 유효합니다.",
+    signedApproval: "{address}가 서명했습니다. 승인이 확인되었습니다:\n{link}\n이제 여는 중입니다...",
+    signedOpening: "{address}가 서명했습니다. 이제 여는 중입니다...",
+    opened: "열렸습니다. 에스크로가 Vault에서 한도로 보호됩니다:\n{link}",
+    accrual: "한도 안에서 자금이 누적된 후 한 번 정산합니다...",
+    settleFailed: "정산을 실행하지 못했습니다: {reason}",
+    settled: "수취인에게 {amount} {symbol}을 정산했습니다:\n{link}\nVault 잔액: {total} 중 {remaining} {symbol}.\n에이전트는 서명한 한도보다 더 많이 이동할 수 없습니다.",
+  },
+};
+
+export function t(language: Language, key: string, vars: Record<string, string | number> = {}): string {
+  let value = messages[language][key] ?? messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(vars)) {
+    value = value.replaceAll("{" + name + "}", String(replacement));
+  }
+  return value;
+}

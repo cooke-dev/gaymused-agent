@@ -10,7 +10,7 @@ export interface TgChat {
 export interface TgMessage {
   message_id: number;
   chat: TgChat;
-  from?: { id: number; username?: string; first_name?: string };
+  from?: { id: number; username?: string; first_name?: string; language_code?: string };
   text?: string;
 }
 
@@ -57,8 +57,8 @@ export class TelegramClient {
    * Long-poll for new updates. Blocks up to timeoutSeconds on the server side; the client aborts a
    * little later so a dropped connection cannot hang the loop forever.
    */
-  async setMyCommands(commands: TgBotCommand[]): Promise<void> {
-    await this.call("setMyCommands", { commands });
+  async setMyCommands(commands: TgBotCommand[], languageCode?: string): Promise<void> {
+    await this.call("setMyCommands", languageCode ? { commands, language_code: languageCode } : { commands });
   }
 
   async setMyDescription(description: string): Promise<void> {

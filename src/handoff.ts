@@ -16,6 +16,7 @@ import {
 } from "openrails-sdk";
 import type { BuiltIntent } from "./intent-builder";
 import type { NetworkConfig } from "./config";
+import type { Language } from "./i18n";
 
 /** A standard ERC-20 approve the payer must send so the hub can pull escrow under transferFrom. */
 export interface ApprovalRequest {
@@ -38,6 +39,7 @@ export interface SignedHandoff {
 interface PendingHandoff {
   built: BuiltIntent;
   explanation: string;
+  language: Language;
   approval?: ApprovalRequest;
   expiresAt: number;
   used: boolean;
@@ -70,6 +72,8 @@ function describeTerms(built: BuiltIntent, network: NetworkConfig): Record<strin
 
 function pageHtml(entry: PendingHandoff, network: NetworkConfig): string {
   const { built, explanation, approval } = entry;
+  const ko = entry.language === "ko";
+  const copy = ko ? { title: "검토 후 서명", heading: "승인할 내용을 검토하세요", vault: "Vault가 이 한도를 온체인에서 집행합니다. 에이전트가 잘못 작동해도 하드 캡보다 더 많은 금액을 이동할 수 없습니다.", button: "지갑 연결 후 서명", noWallet: "브라우저 지갑을 찾을 수 없습니다. MetaMask 또는 유사한 지갑을 설치하세요." } : { title: "Review and sign", heading: "Review what you are authorizing", vault: "The Vault enforces these bounds on-chain. Nothing can move more than the hard cap, even if the agent misbehaves.", button: "Connect wallet and sign", noWallet: "No browser wallet found. Install MetaMask or similar." };
   const eip712Domain = [
     { name: "name", type: "string" },
     { name: "version", type: "string" },
@@ -109,7 +113,7 @@ function pageHtml(entry: PendingHandoff, network: NetworkConfig): string {
        costs a little GIWA ETH. The agent never holds your key: both happen in your own wallet.</p>`
     : "";
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Review and sign</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${copy.title}</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 body{font-family:system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#0b1730}
@@ -124,12 +128,12 @@ button{font-size:1.05rem;padding:.6rem 1.4rem;cursor:pointer}
 #status{margin-top:1rem;font-weight:600}
 .explain{background:#f5f5f5;border-radius:8px;padding:.8rem 1rem}
 </style></head><body>
-<h2>Review what you are authorizing</h2>
+<h2>${copy.heading}</h2>
 <p class="explain">${explanation}</p>
 <table>${rows}</table>
-<p>The Vault enforces these bounds on-chain. Nothing can move more than the hard cap, even if the agent misbehaves.</p>
+<p>${copy.vault}</p>
 ${approveNote}
-<button id="sign">Connect wallet and sign</button>
+<button id="sign">${copy.button}</button>
 <div id="status"></div>
 <script>
 const INTENT_DATA = ${JSON.stringify(intentTypedData)};
@@ -139,7 +143,7 @@ const status = (m) => { document.getElementById("status").textContent = m; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 document.getElementById("sign").onclick = async () => {
   try {
-    if (!window.ethereum) { status("No browser wallet found. Install MetaMask or similar."); return; }
+    if (!window.ethereum) { status(${JSON.stringify(copy.noWallet)}); return; }
     const [address] = await window.ethereum.request({ method: "eth_requestAccounts" });
     try {
       await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: WALLET_CHAIN.chainId }] });
@@ -277,6 +281,7 @@ export class HandoffServer {
     built: BuiltIntent,
     explanation: string,
     approval?: ApprovalRequest,
+    language: Language = "en",
   ): { id: string; url: string; signed: Promise<SignedHandoff> } {
     const id = randomBytes(16).toString("hex");
     const ttl = (this.opts.ttlSeconds ?? DEFAULT_TTL_SECONDS) * 1000;
@@ -286,6 +291,7 @@ export class HandoffServer {
     const entry: PendingHandoff = {
       built,
       explanation,
+      language,
       approval,
       expiresAt: Date.now() + ttl,
       used: false,

@@ -3,6 +3,7 @@
 import { ethers } from "ethers";
 import { z } from "zod";
 import type { OnChainState, PaycardSummary } from "./reader";
+import type { Language } from "./i18n";
 
 // ---------- proposal schema (the brain's ONLY output) ----------
 
@@ -47,6 +48,7 @@ export interface BrainOptions {
   maxAttempts?: number;
   /** Instrumentation only: called per attempt; `rejected` is set when that attempt failed validation. */
   onAttempt?: (attempt: number, rejected?: string) => void;
+  language?: Language;
 }
 
 // ---------- grounding ----------
@@ -79,7 +81,7 @@ export function describeState(state: OnChainState): string {
 
 // ---------- prompt ----------
 
-function systemPrompt(state: OnChainState): string {
+function systemPrompt(state: OnChainState, language: Language): string {
   return `You are the decision brain of a bounded-payment copilot built on OpenRails.
 A user asks in plain language; you DECIDE what bounded payment to propose and EXPLAIN it.
 You never execute anything: downstream deterministic code converts your proposal into an
@@ -115,6 +117,7 @@ Output rules:
   (cap, rate, duration), that the money is escrowed in a Vault the agent cannot exceed, and that
   unused funds return to them.
 - "answer_state": put the answer in "answer", grounded strictly in the state; feasible=true.
+- Write "answer", "reason", and "explanation" in ${language === "ko" ? "Korean" : "English"}. Keep JSON keys, addresses, numbers, and token symbols unchanged.
 
 JSON schema (informal):
 {
@@ -218,7 +221,7 @@ export async function decide(
   userRequest: string,
   opts: BrainOptions,
 ): Promise<AgentProposal> {
-  const system = systemPrompt(state);
+  const system = systemPrompt(state, opts.language ?? "en");
   const maxAttempts = opts.maxAttempts ?? 3;
   let lastError = "";
 

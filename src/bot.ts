@@ -13,6 +13,8 @@ import { buildIntent } from "./intent-builder";
 import { HandoffServer, type ApprovalRequest } from "./handoff";
 import { openViaHub, settleStream, readStream } from "./actions";
 import { TelegramClient, type TgMessage } from "./telegram";
+import { LanguageStore } from "./language-store";
+import { normalizeLanguage, t, type Language } from "./i18n";
 
 const HANDOFF_TTL_SECONDS = 1800; // matches the 30-minute open window the streams use
 const POLL_TIMEOUT_SECONDS = 30;
@@ -26,6 +28,7 @@ export class TelegramSidecar {
   private readonly logo: Uint8Array;
   private readonly handoff: HandoffServer;
   private readonly brainOpts: BrainOptions;
+  private readonly languages: LanguageStore;
   /** Payer wallet the user set for their chat. The key stays in their wallet; we only hold the address. */
   private readonly wallets = new Map<number, string>();
   /** Pending handoff id per chat, used only for local cancellation before signing completes. */
@@ -41,6 +44,7 @@ export class TelegramSidecar {
     this.tg = new TelegramClient(cfg.telegramBotToken);
     this.logo = readFileSync(resolve(process.cwd(), "assets/midiumor-logo-option-2.png"));
     this.handoff = new HandoffServer(cfg.network, { ttlSeconds: HANDOFF_TTL_SECONDS });
+    this.languages = new LanguageStore();
     this.brainOpts = { apiKey: cfg.openRouterApiKey, model: cfg.openRouterModel };
   }
 
@@ -70,6 +74,17 @@ export class TelegramSidecar {
       { command: "stream", description: "Request a capped streaming payment" },
       { command: "pay", description: "Request a capped one-time payment" },
       { command: "cancel", description: "Cancel a pending signing request" },
+      { command: "language", description: "Choose English or Korean" },
+    ];
+    const koreanCommands = [
+      { command: "start", description: "시작 안내 보기" },
+      { command: "help", description: "명령어와 결제 예시 보기" },
+      { command: "wallet", description: "서명할 지갑 설정" },
+      { command: "state", description: "잔액과 활성 스트림 확인" },
+      { command: "stream", description: "한도가 있는 스트리밍 결제 요청" },
+      { command: "pay", description: "한도가 있는 일회성 결제 요청" },
+      { command: "cancel", description: "대기 중인 서명 요청 취소" },
+      { command: "language", description: "영어 또는 한국어 선택" },
     ];
     while (true) {
       try {
@@ -77,6 +92,7 @@ export class TelegramSidecar {
           "Bounded-payment copilot on GIWA. Check your state, then ask for a capped stream or one-time payment. You sign and approve in your own wallet; the Vault enforces the limit.",
         );
         await this.tg.setMyCommands(commands);
+        await this.tg.setMyCommands(koreanCommands, "ko");
         await this.tg.getMe();
         return;
       } catch (err) {
@@ -127,16 +143,18 @@ export class TelegramSidecar {
   private async handleMessage(msg: TgMessage): Promise<void> {
     const chatId = msg.chat.id;
     const text = (msg.text ?? "").trim();
+    this.ensureLanguage(msg);
     try {
       if (text.startsWith("/start") || text.startsWith("/help")) return this.cmdHelp(chatId);
+      if (/^\/(?:language|lang)(?:@\S+)?(?:\s|$)/i.test(text)) return this.cmdLanguage(chatId, text);
       if (text.startsWith("/wallet")) return this.cmdWallet(chatId, text);
       if (text.startsWith("/state")) return this.cmdState(chatId);
       if (/^\/cancel(?:@\S+)?$/i.test(text)) return this.cmdCancel(chatId);
       if (/^\/stream(?:@\S+)?$/i.test(text)) {
-        return this.send(chatId, "Usage: /stream 0.09 orUSD to 0xRecipient over 30 minutes");
+        return this.send(chatId, t(this.languageFor(chatId), "usageStream", { symbol: this.cfg.network.tokenSymbol }));
       }
       if (/^\/pay(?:@\S+)?$/i.test(text)) {
-        return this.send(chatId, "Usage: /pay 0.25 orUSD to 0xRecipient");
+        return this.send(chatId, t(this.languageFor(chatId), "usagePay", { symbol: this.cfg.network.tokenSymbol }));
       }
       if (/^\/stream(?:@\S+)?\s+/i.test(text)) {
         return this.handleRequest(chatId, text.replace(/^\/stream(?:@\S+)?\s+/i, "").trim());
@@ -144,7 +162,7 @@ export class TelegramSidecar {
       if (/^\/pay(?:@\S+)?\s+/i.test(text)) {
         return this.handleRequest(chatId, text.replace(/^\/pay(?:@\S+)?\s+/i, "").trim());
       }
-      if (text.startsWith("/")) return this.send(chatId, "Unknown command. Try /help.");
+      if (text.startsWith("/")) return this.send(chatId, t(this.languageFor(chatId), "unknown"));
       return await this.handleRequest(chatId, text);
     } catch (err) {
       await this.send(chatId, `Something went wrong: ${err instanceof Error ? err.message : String(err)}`);
@@ -152,27 +170,53 @@ export class TelegramSidecar {
   }
 
   private async cmdHelp(chatId: number): Promise<void> {
+    const language = this.languageFor(chatId);
     const sym = this.cfg.network.tokenSymbol;
     await this.tg.sendPhoto(chatId, this.logo, "MidiumOR | Bounded payments for AI agents");
     await this.send(
       chatId,
       [
-        "MidiumOR | Bounded-payment copilot on " + this.cfg.network.name + ".",
-        "I propose " + sym + " payments with a hard cap; you sign and approve in your own wallet.",
-        "The on-chain Vault enforces the bounds. I never hold your key.",
+        t(language, "helpTitle", { network: this.cfg.network.name }),
+        t(language, "helpIntro", { symbol: sym }),
+        t(language, "helpVault"),
         "",
-        "1) Set your wallet:  /wallet 0xYourAddress",
-        "2) Check it:         /state",
-        "3) Cancel a pending signing link: /cancel",
-        "4) Ask in plain language, for example:",
-        "   - stream 0.09 " + sym + " to 0xRecipient over 30 minutes",
-        "   - pay 0.25 " + sym + " to 0xRecipient",
+        t(language, "helpWallet"),
+        t(language, "helpState"),
+        t(language, "helpCancel"),
+        t(language, "helpAsk"),
+        t(language, "helpStream", { symbol: sym }),
+        t(language, "helpPay", { symbol: sym }),
         "",
-        "I refuse anything over your balance before you sign, and the Vault caps what I can move after you sign.",
+        t(language, "helpSafety"),
+        "",
+        t(language, "languagePrompt"),
       ].join("\n"),
     );
   }
 
+  private cmdLanguage(chatId: number, text: string): Promise<void> {
+    const arg = text.replace(/^\/(?:language|lang)(?:@\S+)?\s*/i, "").trim().toLowerCase();
+    if (!arg) return this.send(chatId, t(this.languageFor(chatId), "languagePrompt"));
+    if (arg === "en" || arg === "english") {
+      this.languages.set(chatId, "en");
+      return this.send(chatId, t("en", "languageSetEn"));
+    }
+    if (arg === "ko" || arg === "korean") {
+      this.languages.set(chatId, "ko");
+      return this.send(chatId, t("ko", "languageSetKo"));
+    }
+    return this.send(chatId, t(this.languageFor(chatId), "languageUsage"));
+  }
+
+  private ensureLanguage(msg: TgMessage): void {
+    if (!this.languages.has(msg.chat.id)) {
+      this.languages.set(msg.chat.id, normalizeLanguage(msg.from?.language_code));
+    }
+  }
+
+  private languageFor(chatId: number): Language {
+    return this.languages.get(chatId);
+  }
   private cmdWallet(chatId: number, text: string): Promise<void> {
     const arg = text.replace(/^\/wallet(@\S+)?\s*/, "").trim();
     if (!arg) return this.send(chatId, "Usage: /wallet 0xYourAddress");
@@ -184,34 +228,35 @@ export class TelegramSidecar {
 
   private async cmdState(chatId: number): Promise<void> {
     const wallet = this.wallets.get(chatId);
-    if (!wallet) return this.send(chatId, "Set your wallet first: /wallet 0xYourAddress");
-    await this.send(chatId, "Reading your on-chain state...");
+    if (!wallet) return this.send(chatId, t(this.languageFor(chatId), "noWallet"));
+    await this.send(chatId, t(this.languageFor(chatId), "readingState"));
     const state = await readOnChainState(this.provider, this.cfg.network, wallet, { includePaycards: true });
     await this.send(chatId, describeState(state));
   }
 
   private cmdCancel(chatId: number): Promise<void> {
     const handoffId = this.pendingHandoffs.get(chatId);
-    if (!handoffId) return this.send(chatId, "There is no pending signing request to cancel.");
+    if (!handoffId) return this.send(chatId, t(this.languageFor(chatId), "noPending"));
     this.pendingHandoffs.delete(chatId);
     this.handoff.cancelHandoff(handoffId);
-    return this.send(chatId, "Pending signing request cancelled. Nothing was signed and nothing moved.");
+    return this.send(chatId, t(this.languageFor(chatId), "cancelled"));
   }
   private async handleRequest(chatId: number, text: string): Promise<void> {
+    const language = this.languageFor(chatId);
     const wallet = this.wallets.get(chatId);
-    if (!wallet) return this.send(chatId, "Set your wallet first: /wallet 0xYourAddress, then ask again.");
+    if (!wallet) return this.send(chatId, t(language, "noWallet"));
 
-    await this.send(chatId, "Reading your on-chain state and thinking...");
+    await this.send(chatId, t(language, "thinking"));
     const state = await readOnChainState(this.provider, this.cfg.network, wallet, { includePaycards: true });
 
     let proposal;
     try {
-      proposal = await decide(state, text, this.brainOpts);
+      proposal = await decide(state, text, { ...this.brainOpts, language });
     } catch {
       const sym = this.cfg.network.tokenSymbol;
       return this.send(
         chatId,
-        `I could not turn that into a bounded payment. Try: stream 0.09 ${sym} to 0xRecipient over 30 minutes`,
+        t(language, "brainFail", { symbol: sym }),
       );
     }
 
@@ -227,11 +272,11 @@ export class TelegramSidecar {
       return this.send(
         chatId,
         [
-          "⛔ Refused before signing.",
+          "⛔ " + t(language, "refusalHeader"),
           proposal.reason ?? "the request is outside your bounds",
           "",
-          "The budget is bounded, so I won't ask you to authorize something the Vault couldn't back.",
-          "Nothing was signed and nothing moved.",
+          t(language, "refusalBody"),
+          t(language, "nothingMoved"),
         ].join("\n"),
       );
     }
@@ -246,11 +291,12 @@ export class TelegramSidecar {
     proposal: Awaited<ReturnType<typeof decide>>,
     state: Awaited<ReturnType<typeof readOnChainState>>,
   ): Promise<void> {
+    const language = this.languageFor(chatId);
     const net = this.cfg.network;
     const built = buildIntent(proposal, state, net);
     const pool = built.baseUnits.totalAllocationPool;
     const approval: ApprovalRequest = { token: net.tokenAddress, spender: net.hubAddress, value: pool };
-    const { id: handoffId, url, signed } = this.handoff.createHandoff(built, proposal.explanation, approval);
+    const { id: handoffId, url, signed } = this.handoff.createHandoff(built, proposal.explanation, approval, language);
     this.pendingHandoffs.set(chatId, handoffId);
 
     await this.send(

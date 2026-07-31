@@ -5,3 +5,5 @@ audit-log.jsonl
 audit-log.db
 memory.md
 DECISIONS.md
+
+data/telegram-languages.json
