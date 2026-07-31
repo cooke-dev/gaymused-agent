@@ -221,11 +221,11 @@ export class TelegramSidecar {
   }
   private cmdWallet(chatId: number, text: string): Promise<void> {
     const arg = text.replace(/^\/wallet(@\S+)?\s*/, "").trim();
-    if (!arg) return this.send(chatId, "Usage: /wallet 0xYourAddress");
-    if (!ethers.isAddress(arg)) return this.send(chatId, `That is not a valid address: ${arg}`);
+    if (!arg) return this.send(chatId, t(this.languageFor(chatId), "walletUsage"));
+    if (!ethers.isAddress(arg)) return this.send(chatId, t(this.languageFor(chatId), "invalidAddress", { address: arg }));
     const addr = ethers.getAddress(arg);
     this.wallets.set(chatId, addr);
-    return this.send(chatId, `Wallet set to ${addr}. This is the address you will sign and approve with. Try /state.`);
+    return this.send(chatId, t(this.languageFor(chatId), "walletSet", { address: addr }));
   }
 
   private async cmdState(chatId: number): Promise<void> {
@@ -233,7 +233,7 @@ export class TelegramSidecar {
     if (!wallet) return this.send(chatId, t(this.languageFor(chatId), "noWallet"));
     await this.send(chatId, t(this.languageFor(chatId), "readingState"));
     const state = await readOnChainState(this.provider, this.cfg.network, wallet, { includePaycards: true });
-    await this.send(chatId, describeState(state));
+    await this.send(chatId, describeState(state, this.languageFor(chatId)));
   }
 
   private cmdCancel(chatId: number): Promise<void> {

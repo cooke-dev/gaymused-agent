@@ -3,7 +3,7 @@
 import { ethers } from "ethers";
 import { z } from "zod";
 import type { OnChainState, PaycardSummary } from "./reader";
-import type { Language } from "./i18n";
+import { t, type Language } from "./i18n";
 
 // ---------- proposal schema (the brain's ONLY output) ----------
 
@@ -65,7 +65,7 @@ function fmtCard(c: PaycardSummary, decimals: number, symbol: string): string {
 }
 
 /** Deterministic, human-units summary of the state the LLM is allowed to know. */
-export function describeState(state: OnChainState): string {
+export function describeState(state: OnChainState, language: Language = "en"): string {
   const d = state.tokenDecimals;
   const s = state.tokenSymbol;
   const lines = [
