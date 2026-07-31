@@ -3,6 +3,8 @@
 // keeps: it never sees or holds a user key (signing and the approve() happen in the user's own
 // wallet via the handoff), it runs ONE long-lived handoff server for the whole session, it is
 // GIWA-only with no relay, and it surfaces the over-limit refusal clearly in chat.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ethers } from "ethers";
 import type { AppConfig } from "./config";
 import { makeProvider, readOnChainState } from "./reader";
@@ -21,6 +23,7 @@ export class TelegramSidecar {
   private readonly provider: ethers.JsonRpcProvider;
   private readonly agentWallet: ethers.Wallet;
   private readonly tg: TelegramClient;
+  private readonly logo: Uint8Array;
   private readonly handoff: HandoffServer;
   private readonly brainOpts: BrainOptions;
   /** Payer wallet the user set for their chat. The key stays in their wallet; we only hold the address. */
@@ -36,6 +39,7 @@ export class TelegramSidecar {
     this.provider = makeProvider(cfg.network);
     this.agentWallet = new ethers.Wallet(cfg.payerPrivateKey, this.provider);
     this.tg = new TelegramClient(cfg.telegramBotToken);
+    this.logo = readFileSync(resolve(process.cwd(), "assets/midiumor-logo-option-2.png"));
     this.handoff = new HandoffServer(cfg.network, { ttlSeconds: HANDOFF_TTL_SECONDS });
     this.brainOpts = { apiKey: cfg.openRouterApiKey, model: cfg.openRouterModel };
   }
@@ -147,22 +151,24 @@ export class TelegramSidecar {
     }
   }
 
-  private cmdHelp(chatId: number): Promise<void> {
+  private async cmdHelp(chatId: number): Promise<void> {
     const sym = this.cfg.network.tokenSymbol;
-    return this.send(
+    await this.tg.sendPhoto(chatId, this.logo, "MidiumOR | Bounded payments for AI agents");
+    await this.send(
       chatId,
       [
-        `Bounded-payment copilot on ${this.cfg.network.name}. I propose ${sym} payments with a hard cap;`,
-        "you sign and approve in your own wallet; the on-chain Vault enforces the bounds. I never hold your key.",
+        "MidiumOR | Bounded-payment copilot on " + this.cfg.network.name + ".",
+        "I propose " + sym + " payments with a hard cap; you sign and approve in your own wallet.",
+        "The on-chain Vault enforces the bounds. I never hold your key.",
         "",
         "1) Set your wallet:  /wallet 0xYourAddress",
         "2) Check it:         /state",
         "3) Cancel a pending signing link: /cancel",
         "4) Ask in plain language, for example:",
-        `   • stream 0.09 ${sym} to 0xRecipient over 30 minutes`,
-        `   • pay 0.25 ${sym} to 0xRecipient`,
+        "   - stream 0.09 " + sym + " to 0xRecipient over 30 minutes",
+        "   - pay 0.25 " + sym + " to 0xRecipient",
         "",
-        "I refuse anything over your balance before you ever sign, and the Vault caps what I can move even after you do.",
+        "I refuse anything over your balance before you sign, and the Vault caps what I can move after you sign.",
       ].join("\n"),
     );
   }

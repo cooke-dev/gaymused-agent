@@ -82,4 +82,14 @@ export class TelegramClient {
   async sendMessage(chatId: number, text: string): Promise<void> {
     await this.call("sendMessage", { chat_id: chatId, text, disable_web_page_preview: true });
   }
+
+  async sendPhoto(chatId: number, photo: Uint8Array, caption: string): Promise<void> {
+    const form = new FormData();
+    form.append("chat_id", String(chatId));
+    form.append("caption", caption);
+    form.append("photo", new Blob([Uint8Array.from(photo).buffer as ArrayBuffer], { type: "image/png" }), "midiumor-logo.png");
+    const res = await fetch(this.base + "/sendPhoto", { method: "POST", body: form });
+    const data = (await res.json()) as TgResponse<unknown>;
+    if (!data.ok) throw new Error("Telegram sendPhoto failed: " + (data.description ?? res.status));
+  }
 }

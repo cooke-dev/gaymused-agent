@@ -55,7 +55,7 @@ async function main() {
 
   // 1. Page renders with terms
   const page = await fetch(url).then((r) => r.text());
-  check("GET page shows cap", page.includes("0.5 USDC"));
+  check("GET page shows cap", page.includes(`0.5 ${network.tokenSymbol}`));
   check("GET page shows recipient", page.includes("0x4b94939CBfc33aAC3e2651E959eD6D5d35AfA4D5"));
   check("GET page embeds SDK typed data", page.includes("SettlementIntent"));
 

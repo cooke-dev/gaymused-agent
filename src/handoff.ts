@@ -5,6 +5,8 @@
 // user's wallet. orUSD has no EIP-2612 permit, so allowance is set by approve(), not a signed permit.
 import Fastify, { type FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { ethers } from "ethers";
 import {
   OPENRAILS_EIP712_TYPES,
@@ -45,6 +47,7 @@ interface PendingHandoff {
 
 const DEFAULT_TTL_SECONDS = 600;
 const ERC20_APPROVE_IFACE = new ethers.Interface(["function approve(address spender,uint256 value)"]);
+const MIDIUMOR_LOGO_BASE64 = readFileSync(resolve(process.cwd(), "assets/midiumor-logo-option-2.png")).toString("base64");
 
 /** Human readable terms derived deterministically from the intent's base units. */
 function describeTerms(built: BuiltIntent, network: NetworkConfig): Record<string, string> {
@@ -109,7 +112,11 @@ function pageHtml(entry: PendingHandoff, network: NetworkConfig): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Review and sign</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{font-family:system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;line-height:1.5}
+body{font-family:system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#0b1730}
+.brand{display:flex;align-items:center;gap:.75rem;margin-bottom:1.5rem}
+.brand img{width:58px;height:42px;object-fit:contain}
+.brand strong{display:block;font-size:1.2rem}
+.brand small{color:#5c6b82}
 table{border-collapse:collapse;width:100%;margin:1rem 0}
 th,td{text-align:left;padding:.4rem .6rem;border-bottom:1px solid #ddd;word-break:break-all}
 th{white-space:nowrap;vertical-align:top}
