@@ -127,7 +127,7 @@ Users can:
 - Receive GIWA transaction links.
 - Cancel a pending signing handoff.
 
-The current signing handoff is local and desktop-only. A public deployment is required for mobile wallet support.
+The hosted signing handoff is available at https://35.189.222.29.sslip.io. The local address remains available for local development. The hosted HTTPS address supports wallet signing from a phone, subject to wallet compatibility.
 
 The current flow uses standard approve. The user pays a small amount of native GIWA ETH for the approval transaction. Gasless relay support and permit support are future options, not current features.
 
@@ -236,7 +236,7 @@ For automatic startup and restart on Windows, install the scheduled task:
 powershell -ExecutionPolicy Bypass -File scripts/install-telegram-sidecar-task.ps1
 ~~~
 
-The signing handoff uses http://127.0.0.1:8787. Open the link on the same computer that runs the sidecar.
+For local development, the signing handoff uses http://127.0.0.1:8787. The hosted sidecar uses https://35.189.222.29.sslip.io and forwards the request through Caddy to the private Fastify service.
 
 ## Useful checks
 
@@ -480,13 +480,13 @@ The browser wallet receives the exact typed data created by the intent builder. 
 
 The token expires. A used token cannot be replayed. A cancelled token cannot be used.
 
-The current local URL is:
+The local development URL is:
 
 ~~~text
 http://127.0.0.1:8787/sign/<handoff-token>
 ~~~
 
-This URL works on the computer that runs the sidecar. A public HTTPS deployment is required for mobile signing.
+The hosted deployment generates the same single-use handoff under https://35.189.222.29.sslip.io. Caddy provides HTTPS and forwards requests to Fastify on the VM loopback address. The Fastify service is not directly exposed to the public network.
 
 ### Approval and settlement
 
@@ -525,7 +525,7 @@ The Telegram message explains the refusal. Deterministic code prevents invalid i
 
 ### Infrastructure
 
-The current local infrastructure contains:
+The local development infrastructure contains:
 
 - Telegram Bot API.
 - Telegram sidecar entry point.
@@ -546,13 +546,13 @@ The current local infrastructure contains:
 
 The supervisor restarts the sidecar when the child process exits. Windows Task Scheduler can start the supervisor after user logon.
 
-The local setup improves recovery. It is not a hosted 24/7 service. It is not available when the local computer is off.
+The local setup improves recovery. It is not the production deployment and is not available when the local computer is off.
 
 ### Hosted deployment
 
-A hosted deployment is required when the user's computer can be off.
+The hosted deployment keeps the sidecar available when the user's computer is off.
 
-The hosted system should contain:
+The deployed hosted system contains:
 
 - Cloud VM or managed container service.
 - Public HTTPS domain.
@@ -568,9 +568,9 @@ The hosted system should contain:
 - Alerts.
 - GIWA RPC access.
 
-A container can package the sidecar. A restart policy can restart the container after a failure. A cloud host is still required.
+The current deployment uses a Compute Engine VM instead of a container. A systemd service restarts the sidecar after a process failure or VM restart. A future container deployment may use an equivalent restart policy.
 
-The hosted handoff URL must use HTTPS. It must use a short-lived, single-use token.
+The hosted handoff URL uses HTTPS and a short-lived, single-use token.
 
 The hosted deployment must keep the same security boundary:
 
@@ -582,9 +582,9 @@ The hosted deployment must keep the same security boundary:
 
 ### Reliability limits
 
-The polling loop retries temporary Telegram and network errors. The supervisor restarts a child process after an unexpected exit. The handoff server uses one long-lived port to avoid port collisions.
+The polling loop retries temporary Telegram and network errors. The hosted systemd service restarts the sidecar after an unexpected exit. Caddy terminates HTTPS and forwards to one long-lived handoff server, which avoids port collisions.
 
-A robust hosted deployment must also persist the last Telegram update offset. It must avoid processing the same update twice after a restart. It must monitor health. It must alert when the sidecar stays down. It must prevent two sidecar instances from polling the same bot token.
+A future hardening pass should persist the last Telegram update offset, monitor health, alert when the sidecar stays down, and prevent duplicate sidecar instances from polling the same bot token.
 
 ### Why the sidecar matters
 
