@@ -55,6 +55,9 @@ export interface AppConfig {
   /** OpenRouter model id for the brain, swappable without code changes. */
   openRouterModel: string;
   telegramBotToken?: string;
+  handoffHost: string;
+  handoffPort: number;
+  handoffPublicUrl?: string;
 }
 
 /** Load config: pick the GIWA preset, apply env overrides, attach secrets. */
@@ -90,5 +93,8 @@ export function loadConfig(): AppConfig {
     openRouterApiKey: process.env.OPENROUTER_API_KEY || undefined,
     openRouterModel: process.env.OPENROUTER_MODEL || "anthropic/claude-sonnet-4.5",
     telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || undefined,
+    handoffHost: process.env.HANDOFF_HOST || "127.0.0.1",
+    handoffPort: process.env.HANDOFF_PORT ? Number(process.env.HANDOFF_PORT) : 8787,
+    handoffPublicUrl: process.env.HANDOFF_PUBLIC_URL || undefined,
   };
 }

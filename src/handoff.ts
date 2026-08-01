@@ -194,7 +194,7 @@ export class HandoffServer {
 
   constructor(
     private network: NetworkConfig,
-    private opts: { port?: number; ttlSeconds?: number } = {},
+    private opts: { port?: number; host?: string; publicUrl?: string; ttlSeconds?: number } = {},
   ) {
     this.app = Fastify({ logger: false });
     this.routes();
@@ -272,8 +272,8 @@ export class HandoffServer {
   async start(): Promise<string> {
     const port = this.opts.port ?? 8787;
 
-    await this.app.listen({ port, host: "127.0.0.1" });
-    this.baseUrl = `http://127.0.0.1:${port}`;
+    await this.app.listen({ port, host: this.opts.host ?? "127.0.0.1" });
+    this.baseUrl = this.opts.publicUrl?.replace(/\/$/, "") ?? `http://${this.opts.host ?? "127.0.0.1"}:${port}`;
     return this.baseUrl;
   }
 

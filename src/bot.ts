@@ -43,7 +43,12 @@ export class TelegramSidecar {
     this.agentWallet = new ethers.Wallet(cfg.payerPrivateKey, this.provider);
     this.tg = new TelegramClient(cfg.telegramBotToken);
     this.logo = readFileSync(resolve(process.cwd(), "assets/midiumor-logo-option-2.png"));
-    this.handoff = new HandoffServer(cfg.network, { ttlSeconds: HANDOFF_TTL_SECONDS });
+    this.handoff = new HandoffServer(cfg.network, {
+      ttlSeconds: HANDOFF_TTL_SECONDS,
+      host: cfg.handoffHost,
+      port: cfg.handoffPort,
+      publicUrl: cfg.handoffPublicUrl,
+    });
     this.languages = new LanguageStore();
     this.brainOpts = { apiKey: cfg.openRouterApiKey, model: cfg.openRouterModel };
   }
